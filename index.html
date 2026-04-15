@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FleetTrack — Trazabilidad Total para tu Flota</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:     #4f46e5;
+      --accent-d:   #3730a3;
+      --accent-l:   #eef2ff;
+      --success:    #059669;
+      --success-l:  #d1fae5;
+      --warn:       #d97706;
+      --warn-l:     #fef3c7;
+      --purple:     #7c3aed;
+      --purple-l:   #ede9fe;
+      --sky:        #0284c7;
+      --sky-l:      #e0f2fe;
+      --text:       #0f172a;
+      --text2:      #334155;
+      --muted:      #64748b;
+      --muted2:     #94a3b8;
+      --border:     #e2e8f0;
+      --bg:         #f8fafc;
+      --surface:    #ffffff;
+      --radius:     14px;
+      --radius-lg:  22px;
+      --shadow:     0 1px 4px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+      --shadow-lg:  0 8px 40px rgba(0,0,0,.10);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ─────────────────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 19px; color: var(--text);
+      text-decoration: none;
+    }
+    .nav-logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-links { display: flex; gap: 28px; }
+    .nav-links a {
+      font-size: 14px; font-weight: 500; color: var(--muted);
+      text-decoration: none; transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 10px 22px; border-radius: 10px; border: none; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px;
+      transition: all .18s; text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-d); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,70,229,.35); }
+    .btn-outline { background: transparent; color: var(--accent); border: 2px solid var(--accent); }
+    .btn-outline:hover { background: var(--accent-l); }
+
+    /* ── HERO ────────────────────────────────────────────────────────────── */
+    .hero {
+      padding: 100px 40px 80px;
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--accent-l); color: var(--accent);
+      border-radius: 20px; padding: 5px 14px;
+      font-size: 12.5px; font-weight: 700; margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 5vw, 58px);
+      font-weight: 900; line-height: 1.08; letter-spacing: -.03em;
+      color: var(--text); margin-bottom: 22px;
+    }
+    .hero h1 .accent { color: var(--accent); }
+    .hero p {
+      font-size: 17px; color: var(--muted); line-height: 1.7;
+      max-width: 480px; margin-bottom: 36px;
+    }
+    .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+    .hero-stats {
+      display: flex; gap: 28px; margin-top: 44px; flex-wrap: wrap;
+    }
+    .hero-stat { }
+    .hero-stat .num {
+      font-size: 28px; font-weight: 900; color: var(--accent); line-height: 1;
+    }
+    .hero-stat .lbl { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 3px; }
+
+    /* ── PHONE MOCKUP ────────────────────────────────────────────────────── */
+    .phone-wrap {
+      display: flex; justify-content: center; align-items: center;
+      position: relative;
+    }
+    .phone-outer {
+      width: 260px; height: 520px; border-radius: 42px;
+      background: #0f172a;
+      box-shadow: 0 0 0 6px #1e293b, 0 0 0 10px #0f172a, var(--shadow-lg);
+      padding: 14px 10px;
+      display: flex; flex-direction: column; gap: 0;
+      position: relative; overflow: hidden;
+    }
+    .phone-notch {
+      width: 80px; height: 22px; background: #0f172a;
+      border-radius: 0 0 16px 16px; margin: 0 auto 6px; flex-shrink: 0;
+    }
+    .phone-map {
+      background: linear-gradient(135deg, #1e3a5f 0%, #1e4080 40%, #1a5276 100%);
+      flex: 1; border-radius: 20px; overflow: hidden; position: relative;
+    }
+    .map-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .map-route {
+      position: absolute; top: 20px; left: 30px; right: 30px;
+      display: flex; flex-direction: column; gap: 0;
+    }
+    .map-pin {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2.5px solid #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+      position: absolute;
+    }
+    .map-pin.driver {
+      background: #4f46e5; width: 34px; height: 34px;
+      top: 50px; left: 80px;
+    }
+    .map-pin.p1 { background: #f59e0b; top: 20px; left: 30px; }
+    .map-pin.p2 { background: #f59e0b; top: 80px; right: 20px; }
+    .map-pin.p3 { background: #10b981; bottom: 60px; left: 50px; }
+    .map-road {
+      position: absolute; background: rgba(255,255,255,.18);
+    }
+    .map-road.r1 { top: 34px; left: 0; right: 0; height: 2px; transform: rotate(-8deg); }
+    .map-road.r2 { top: 0; bottom: 0; left: 40%; width: 2px; transform: rotate(3deg); }
+    .map-road.r3 { bottom: 40%; left: 0; right: 0; height: 2px; transform: rotate(5deg); }
+    .phone-bottom {
+      padding: 8px 4px 0; display: flex; flex-direction: column; gap: 8px;
+    }
+    .phone-card {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px; padding: 10px 12px;
+      display: flex; align-items: center; gap: 10;
+    }
+    .phone-card-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #f59e0b; color: #fff; font-size: 10px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .phone-card-num.done { background: #10b981; }
+    .phone-card-info { flex: 1; }
+    .phone-card-name { font-size: 11px; font-weight: 700; color: #fff; }
+    .phone-card-addr { font-size: 9.5px; color: rgba(255,255,255,.55); margin-top: 1px; }
+    .phone-card-dist { font-size: 10px; font-weight: 600; color: #a5b4fc; }
+    .phone-tab-bar {
+      display: flex; justify-content: space-around;
+      padding: 8px 0 4px; border-top: 1px solid rgba(255,255,255,.08);
+      margin-top: 6px;
+    }
+    .tab-item {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      font-size: 8px; font-weight: 600;
+    }
+    .tab-item.active { color: #818cf8; }
+    .tab-item:not(.active) { color: rgba(255,255,255,.35); }
+    .tab-dot { width: 18px; height: 18px; border-radius: 6px; }
+    .tab-dot.active { background: rgba(129,140,248,.25); }
+
+    /* ── FLOATING BADGES ─────────────────────────────────────────────────── */
+    .float-badge {
+      position: absolute; background: #fff;
+      border-radius: 12px; padding: 8px 14px;
+      box-shadow: var(--shadow-lg); font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; gap: 7px; white-space: nowrap;
+    }
+    .float-badge.top-right { top: 40px; right: -30px; }
+    .float-badge.bottom-left { bottom: 80px; left: -40px; }
+    .float-badge-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── SECTION WRAPPER ─────────────────────────────────────────────────── */
+    section { padding: 80px 40px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .section-label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--accent);
+      background: var(--accent-l); border-radius: 20px;
+      padding: 4px 13px; margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 40px); font-weight: 800;
+      line-height: 1.15; letter-spacing: -.02em; color: var(--text);
+      margin-bottom: 14px;
+    }
+    .section-sub {
+      font-size: 16px; color: var(--muted); line-height: 1.65;
+      max-width: 600px; margin-bottom: 52px;
+    }
+
+    /* ── BENEFITS ────────────────────────────────────────────────────────── */
+    .benefits-bg { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .benefits-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+    }
+    .benefit-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 32px 28px;
+      transition: all .22s;
+    }
+    .benefit-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--accent);
+    }
+    .benefit-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 20px;
+    }
+    .benefit-pct {
+      font-size: 42px; font-weight: 900; line-height: 1;
+      margin-bottom: 6px; letter-spacing: -.03em;
+    }
+    .benefit-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+    .benefit-desc { font-size: 14px; color: var(--muted); line-height: 1.65; }
+
+    /* ── WHAT IS ─────────────────────────────────────────────────────────── */
+    .what-is {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+    }
+    .what-is-text {}
+    .what-is-checklist { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+    .check-item {
+      display: flex; align-items: flex-start; gap: 12px; font-size: 14.5px; color: var(--text2);
+    }
+    .check-icon {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--success-l); color: var(--success);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+    .what-is-visual {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px;
+      box-shadow: var(--shadow);
+    }
+    .flow-step {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 0; border-bottom: 1px solid var(--border);
+    }
+    .flow-step:last-child { border-bottom: none; }
+    .flow-step-num {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; flex-shrink: 0;
+    }
+    .flow-step-text .flow-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .flow-step-text .flow-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .flow-arrow { margin-left: auto; font-size: 14px; color: var(--muted2); }
+
+    /* ── PILLARS ─────────────────────────────────────────────────────────── */
+    .pillars-bg { background: linear-gradient(180deg, var(--bg) 0%, #eef2ff 100%); }
+    .pillars-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
+    }
+    .pillar-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden; box-shadow: var(--shadow);
+      transition: all .22s;
+    }
+    .pillar-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
+    .pillar-header {
+      padding: 20px 22px 0;
+    }
+    .pillar-num {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 11.5px; font-weight: 700; letter-spacing: .05em;
+      text-transform: uppercase; margin-bottom: 10px;
+    }
+    .pillar-title { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+    .pillar-sub { font-size: 13px; color: var(--muted); line-height: 1.55; margin-bottom: 20px; }
+
+    /* ── PILLAR 1: STORE MOCKUP ──────────────────────────────────────────── */
+    .store-mockup {
+      margin: 0 22px 22px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+    }
+    .store-topbar {
+      padding: 10px 14px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .store-topbar-icon {
+      width: 26px; height: 26px; border-radius: 8px;
+      background: #059669; display: flex; align-items: center; justify-content: center; font-size: 13px;
+    }
+    .store-topbar-title { font-size: 12px; font-weight: 700; color: var(--text); }
+    .store-topbar-sub { font-size: 10px; color: var(--muted); }
+    .store-order-list { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+    .store-order-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .store-order-icon { font-size: 16px; }
+    .store-order-name { font-size: 11.5px; font-weight: 600; color: var(--text); }
+    .store-order-addr { font-size: 10px; color: var(--muted); margin-top: 1px; }
+    .store-badge {
+      margin-left: auto; flex-shrink: 0;
+      border-radius: 20px; padding: 3px 9px;
+      font-size: 9.5px; font-weight: 700;
+    }
+    .store-btn-ready {
+      margin: 0 10px 10px;
+      background: #7c3aed; color: #fff;
+      border: none; border-radius: 10px; padding: 10px;
+      width: calc(100% - 20px); font-family: 'Inter', sans-serif;
+      font-size: 12px; font-weight: 700; cursor: default;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+
+    /* ── PILLAR 2: MOBILE MOCKUP ─────────────────────────────────────────── */
+    .mobile-mockup {
+      margin: 0 22px 22px;
+      background: #0f172a; border-radius: 18px; overflow: hidden;
+      padding: 10px 10px 0;
+    }
+    .mm-map {
+      background: linear-gradient(135deg, #1e3a5f, #1a4f7a);
+      border-radius: 12px 12px 0 0; height: 120px; position: relative; overflow: hidden;
+    }
+    .mm-map-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .mm-driver-dot {
+      position: absolute; width: 28px; height: 28px; border-radius: 50%;
+      background: #4f46e5; border: 2.5px solid #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      box-shadow: 0 0 0 6px rgba(79,70,229,.25);
+    }
+    .mm-pin { position: absolute; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #fff; }
+    .mm-pin.p1 { background: #f59e0b; top: 14px; left: 18px; }
+    .mm-pin.p2 { background: #f59e0b; top: 12px; right: 22px; }
+    .mm-pin.p3 { background: #10b981; bottom: 14px; right: 30px; }
+    .mm-card-list { padding: 8px 6px; display: flex; flex-direction: column; gap: 5px; }
+    .mm-card {
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px; padding: 8px 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .mm-num { width: 20px; height: 20px; border-radius: 50%; background: #f59e0b; color: #fff; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .mm-num.done { background: #10b981; }
+    .mm-name { font-size: 10px; font-weight: 700; color: #fff; }
+    .mm-addr { font-size: 8.5px; color: rgba(255,255,255,.45); }
+    .mm-dist { font-size: 9.5px; font-weight: 600; color: #a5b4fc; margin-left: auto; }
+    .mm-llegue {
+      margin: 6px 6px 8px; background: #4f46e5; color: #fff;
+      border-radius: 9px; padding: 9px; text-align: center;
+      font-size: 11px; font-weight: 800; letter-spacing: .02em;
+    }
+
+    /* ── PILLAR 3: ADMIN MAP MOCKUP ──────────────────────────────────────── */
+    .admin-mockup {
+      margin: 0 22px 22px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+    }
+    .admin-topbar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 9px 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .admin-topbar-title { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; }
+    .admin-live-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #10b981;
+      box-shadow: 0 0 0 3px rgba(16,185,129,.2);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 3px rgba(16,185,129,.2); } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,.08); } }
+    .admin-live-label { font-size: 10px; font-weight: 600; color: var(--success); }
+    .admin-map-area {
+      background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 60%, #e0f2fe 100%);
+      height: 140px; position: relative; overflow: hidden;
+    }
+    .admin-map-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    .admin-truck { position: absolute; width: 32px; height: 32px; border-radius: 50%; background: #4f46e5; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 8px rgba(79,70,229,.4); }
+    .admin-truck.t1 { top: 30px; left: 30px; }
+    .admin-truck.t2 { top: 60px; right: 50px; }
+    .admin-pin-green { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: #10b981; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #fff; font-weight: 800; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+    .admin-pin-green.g1 { top: 18px; right: 30px; }
+    .admin-pin-green.g2 { bottom: 22px; left: 70px; }
+    .admin-pin-green.g3 { bottom: 16px; right: 80px; }
+    .admin-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--border);
+    }
+    .admin-stat { padding: 10px 12px; text-align: center; border-right: 1px solid var(--border); }
+    .admin-stat:last-child { border-right: none; }
+    .admin-stat-num { font-size: 18px; font-weight: 800; }
+    .admin-stat-lbl { font-size: 9.5px; font-weight: 600; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: .04em; }
+
+    /* ── FEATURES STRIP ──────────────────────────────────────────────────── */
+    .features-strip {
+      background: var(--accent); padding: 52px 40px;
+    }
+    .features-strip .container {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;
+      text-align: center;
+    }
+    .strip-item {}
+    .strip-icon { font-size: 32px; margin-bottom: 12px; }
+    .strip-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .strip-desc { font-size: 13px; color: rgba(255,255,255,.7); line-height: 1.55; }
+
+    /* ── CTA ─────────────────────────────────────────────────────────────── */
+    .cta-section {
+      text-align: center; padding: 100px 40px;
+      background: var(--surface); border-top: 1px solid var(--border);
+    }
+    .cta-section .section-title { max-width: 600px; margin: 0 auto 14px; }
+    .cta-section .section-sub { max-width: 480px; margin: 0 auto 40px; }
+    .cta-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .cta-note { margin-top: 20px; font-size: 12.5px; color: var(--muted2); }
+
+    /* ── FOOTER ──────────────────────────────────────────────────────────── */
+    footer {
+      background: var(--text); color: rgba(255,255,255,.6);
+      padding: 32px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 13px;
+    }
+    footer .footer-logo { font-weight: 800; color: #fff; font-size: 16px; }
+    footer a { color: rgba(255,255,255,.5); text-decoration: none; }
+    footer a:hover { color: #fff; }
+
+    /* ── RESPONSIVE ──────────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; text-align: center; }
+      .hero p { max-width: 100%; }
+      .hero-ctas { justify-content: center; }
+      .hero-stats { justify-content: center; }
+      .phone-wrap { display: none; }
+      .benefits-grid { grid-template-columns: 1fr; }
+      .what-is { grid-template-columns: 1fr; gap: 40px; }
+      .pillars-grid { grid-template-columns: 1fr; }
+      .features-strip .container { grid-template-columns: repeat(2, 1fr); }
+      nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      section { padding: 60px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ───────────────────────────────────────────────────────────────── -->
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="nav-logo-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/>
+        <rect x="9" y="11" width="14" height="10" rx="2"/>
+        <circle cx="12" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+      </svg>
+    </div>
+    FleetTrack
+  </a>
+  <div class="nav-links">
+    <a href="#beneficios">Beneficios</a>
+    <a href="#que-es">Qué es</a>
+    <a href="#pilares">Cómo funciona</a>
+  </div>
+  <a href="#contacto" class="btn btn-primary">Solicitar demo →</a>
+</nav>
+
+<!-- ── HERO ──────────────────────────────────────────────────────────────── -->
+<div class="hero">
+  <div>
+    <div class="hero-badge">
+      <span style="width:7px;height:7px;border-radius:50%;background:#10b981;display:inline-block"></span>
+      Trazabilidad en tiempo real
+    </div>
+    <h1>Tu flota, bajo <span class="accent">control total</span> desde el primer paquete.</h1>
+    <p>FleetTrack conecta tiendas, repartidores y administradores en una sola plataforma digital. Cada entrega es visible, verificable y trazable al instante.</p>
+    <div class="hero-ctas">
+      <a href="#contacto" class="btn btn-primary" style="font-size:15px;padding:12px 26px;">Solicitar demo gratuita →</a>
+      <a href="#pilares" class="btn btn-outline">Ver cómo funciona</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="num">30%</div>
+        <div class="lbl">Ahorro en combustible</div>
+      </div>
+      <div class="hero-stat">
+        <div class="num">100%</div>
+        <div class="lbl">Entregas verificadas</div>
+      </div>
+      <div class="hero-stat">
+        <div class="num">0</div>
+        <div class="lbl">Errores de bulto</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phone mockup -->
+  <div class="phone-wrap">
+    <div style="position:relative">
+      <div class="phone-outer">
+        <div class="phone-notch"></div>
+        <div class="phone-map">
+          <div class="map-grid"></div>
+          <div class="map-road r1"></div>
+          <div class="map-road r2"></div>
+          <div class="map-road r3"></div>
+          <div class="map-pin driver">🚚</div>
+          <div class="map-pin p1">1</div>
+          <div class="map-pin p2">2</div>
+          <div class="map-pin p3">✓</div>
+        </div>
+        <div class="phone-bottom">
+          <div class="phone-card">
+            <div class="phone-card-num">1</div>
+            <div class="phone-card-info">
+              <div class="phone-card-name">María Fernández</div>
+              <div class="phone-card-addr">Planicie Banderita 1015</div>
+            </div>
+            <div class="phone-card-dist">1.2 km</div>
+          </div>
+          <div class="phone-card">
+            <div class="phone-card-num">2</div>
+            <div class="phone-card-info">
+              <div class="phone-card-name">Roberto Díaz</div>
+              <div class="phone-card-addr">Av. Argentina 234</div>
+            </div>
+            <div class="phone-card-dist">2.7 km</div>
+          </div>
+          <div class="phone-card">
+            <div class="phone-card-num done">✓</div>
+            <div class="phone-card-info">
+              <div class="phone-card-name" style="color:rgba(255,255,255,.5)">Cliente Tres</div>
+              <div class="phone-card-addr">Río Negro 88</div>
+            </div>
+            <div class="phone-card-dist" style="color:#10b981">Entregado</div>
+          </div>
+          <div class="phone-tab-bar">
+            <div class="tab-item active"><div class="tab-dot active"></div>Pedidos</div>
+            <div class="tab-item"><div class="tab-dot"></div>Alertas</div>
+            <div class="tab-item"><div class="tab-dot"></div>Perfil</div>
+          </div>
+        </div>
+      </div>
+      <!-- Floating badges -->
+      <div class="float-badge top-right">
+        <span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block"></span>
+        GPS activo
+      </div>
+      <div class="float-badge bottom-left">
+        📦 Lote validado ✓
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BENEFITS ───────────────────────────────────────────────────────────── -->
+<section class="benefits-bg" id="beneficios">
+  <div class="container">
+    <div class="section-label">Impacto inmediato</div>
+    <h2 class="section-title">Resultados desde el primer día</h2>
+    <p class="section-sub">Implementación sin fricciones. Tus repartidores trabajan mejor, tus tiendas operan con claridad y vos tenés visibilidad total.</p>
+    <div class="benefits-grid">
+
+      <div class="benefit-card">
+        <div class="benefit-icon" style="background:#eef2ff">⛽</div>
+        <div class="benefit-pct" style="color:var(--accent)">−30%</div>
+        <div class="benefit-title">Ahorro Logístico</div>
+        <div class="benefit-desc">El enrutamiento inteligente por proximidad GPS optimiza cada recorrido, reduciendo combustible, tiempo y desgaste vehicular.</div>
+      </div>
+
+      <div class="benefit-card">
+        <div class="benefit-icon" style="background:var(--success-l)">📦</div>
+        <div class="benefit-pct" style="color:var(--success)">100%</div>
+        <div class="benefit-title">Control de Stock Total</div>
+        <div class="benefit-desc">El sistema de validación por código de lote elimina errores de entrega antes de que el repartidor arranque. Sin discrepancias posibles.</div>
+      </div>
+
+      <div class="benefit-card">
+        <div class="benefit-icon" style="background:var(--warn-l)">⭐</div>
+        <div class="benefit-pct" style="color:var(--warn)">+NPS</div>
+        <div class="benefit-title">Fidelización de Clientes</div>
+        <div class="benefit-desc">Foto de entrega como prueba digital y notificaciones en tiempo real generan confianza profesional y reducen reclamos al cero.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── QUÉ ES ─────────────────────────────────────────────────────────────── -->
+<section id="que-es">
+  <div class="container">
+    <div class="what-is">
+      <div class="what-is-text">
+        <div class="section-label">Qué es FleetTrack</div>
+        <h2 class="section-title">Trazabilidad digital para empresas reales</h2>
+        <p style="font-size:16px;color:var(--muted);line-height:1.7;margin-bottom:8px">
+          FleetTrack es la plataforma que centraliza y digitaliza la operación logística de empresas con múltiples sucursales y repartidores, sin necesidad de papeles ni llamadas.
+        </p>
+        <div class="what-is-checklist">
+          <div class="check-item">
+            <div class="check-icon">✓</div>
+            <div>Cada pedido tiene trazabilidad completa: desde que la tienda lo carga hasta la foto de entrega al cliente final.</div>
+          </div>
+          <div class="check-item">
+            <div class="check-icon">✓</div>
+            <div>Multi-sucursal: varias tiendas operando en paralelo, con sus propios portales y visibilidad acotada.</div>
+          </div>
+          <div class="check-item">
+            <div class="check-icon">✓</div>
+            <div>El administrador ve todo en un mapa en tiempo real, sin preguntar ni esperar reportes.</div>
+          </div>
+          <div class="check-item">
+            <div class="check-icon">✓</div>
+            <div>Alertas sonoras automáticas cuando el repartidor está a menos de 500m de la tienda.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="what-is-visual">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px">
+          Flujo de una entrega típica
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num" style="background:var(--purple-l);color:var(--purple)">1</div>
+          <div class="flow-step-text">
+            <div class="flow-title">Tienda carga el pedido</div>
+            <div class="flow-sub">Con marca, peso y coordenadas del cliente</div>
+          </div>
+          <div class="flow-arrow">→</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num" style="background:var(--warn-l);color:var(--warn)">2</div>
+          <div class="flow-step-text">
+            <div class="flow-title">Marca "Listo para retiro"</div>
+            <div class="flow-sub">El repartidor recibe notificación automática</div>
+          </div>
+          <div class="flow-arrow">→</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num" style="background:var(--sky-l);color:var(--sky)">3</div>
+          <div class="flow-step-text">
+            <div class="flow-title">Repartidor valida el lote</div>
+            <div class="flow-sub">GPS se activa, ruta ordenada por proximidad</div>
+          </div>
+          <div class="flow-arrow">→</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num" style="background:var(--accent-l);color:var(--accent)">4</div>
+          <div class="flow-step-text">
+            <div class="flow-title">Entrega con foto (PoD)</div>
+            <div class="flow-sub">Pin se vuelve verde en el mapa admin al instante</div>
+          </div>
+          <div class="flow-arrow">→</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-step-num" style="background:var(--success-l);color:var(--success)">5</div>
+          <div class="flow-step-text">
+            <div class="flow-title">Admin ve el rastro completo</div>
+            <div class="flow-sub">Historial, tiempos y fotos disponibles siempre</div>
+          </div>
+          <div class="flow-arrow">✓</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PILLARS ────────────────────────────────────────────────────────────── -->
+<section class="pillars-bg" id="pilares">
+  <div class="container">
+    <div style="text-align:center">
+      <div class="section-label">Los 3 pilares</div>
+      <h2 class="section-title">Una plataforma, tres experiencias</h2>
+      <p class="section-sub" style="margin:0 auto 52px">Cada actor del proceso tiene su interfaz optimizada. Tienda, repartidor y administrador trabajan sincronizados sin fricción.</p>
+    </div>
+
+    <div class="pillars-grid">
+
+      <!-- Pilar 1: Tienda -->
+      <div class="pillar-card">
+        <div class="pillar-header">
+          <div class="pillar-num" style="color:#059669">
+            <span style="width:20px;height:20px;border-radius:6px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:11px">🏪</span>
+            Pilar 1
+          </div>
+          <div class="pillar-title">La Tienda</div>
+          <div class="pillar-sub">Portal web exclusivo donde las sucursales cargan pedidos con detalle del producto y activan el flujo logístico.</div>
+        </div>
+        <div class="store-mockup">
+          <div class="store-topbar">
+            <div class="store-topbar-icon">🏪</div>
+            <div>
+              <div class="store-topbar-title">Portal Tienda</div>
+              <div class="store-topbar-sub">Sucursal Plottier</div>
+            </div>
+          </div>
+          <div class="store-order-list">
+            <div class="store-order-row">
+              <div class="store-order-icon">📦</div>
+              <div style="flex:1">
+                <div class="store-order-name">María Fernández</div>
+                <div class="store-order-addr">Planicie Banderita 1015 · YPF · 10kg</div>
+              </div>
+              <span class="store-badge" style="background:#fef3c7;color:#d97706">Pendiente</span>
+            </div>
+            <div class="store-order-row">
+              <div class="store-order-icon">📦</div>
+              <div style="flex:1">
+                <div class="store-order-name">Roberto Díaz</div>
+                <div class="store-order-addr">Av. Argentina 234 · Coca-Cola · 6u</div>
+              </div>
+              <span class="store-badge" style="background:#ede9fe;color:#7c3aed">Listo ✓</span>
+            </div>
+          </div>
+          <button class="store-btn-ready">✓ Marcar Listo para Retiro</button>
+        </div>
+      </div>
+
+      <!-- Pilar 2: Repartidor -->
+      <div class="pillar-card">
+        <div class="pillar-header">
+          <div class="pillar-num" style="color:var(--accent)">
+            <span style="width:20px;height:20px;border-radius:6px;background:var(--accent-l);display:flex;align-items:center;justify-content:center;font-size:11px">🚚</span>
+            Pilar 2
+          </div>
+          <div class="pillar-title">El Repartidor</div>
+          <div class="pillar-sub">App móvil con mapa inmersivo, enrutamiento inteligente por GPS y foto de entrega para cada parada.</div>
+        </div>
+        <div class="mobile-mockup">
+          <div class="mm-map">
+            <div class="mm-map-grid"></div>
+            <div class="mm-driver-dot">🚚</div>
+            <div class="mm-pin p1">1</div>
+            <div class="mm-pin p2">2</div>
+            <div class="mm-pin p3">✓</div>
+          </div>
+          <div class="mm-card-list">
+            <div class="mm-card">
+              <div class="mm-num">1</div>
+              <div style="flex:1">
+                <div class="mm-name">María Fernández</div>
+                <div class="mm-addr">Planicie Banderita 1015</div>
+              </div>
+              <div class="mm-dist">1.2 km →</div>
+            </div>
+            <div class="mm-card">
+              <div class="mm-num">2</div>
+              <div style="flex:1">
+                <div class="mm-name">Roberto Díaz</div>
+                <div class="mm-addr">Av. Argentina 234</div>
+              </div>
+              <div class="mm-dist">2.7 km →</div>
+            </div>
+            <div class="mm-card">
+              <div class="mm-num done">✓</div>
+              <div style="flex:1">
+                <div class="mm-name" style="color:rgba(255,255,255,.45)">Cliente Tres</div>
+                <div class="mm-addr">Entregado 14:32</div>
+              </div>
+              <div class="mm-dist" style="color:#10b981">✓</div>
+            </div>
+          </div>
+          <div class="mm-llegue">📍 ¡Llegué! — Tomar foto de entrega</div>
+        </div>
+      </div>
+
+      <!-- Pilar 3: Admin -->
+      <div class="pillar-card">
+        <div class="pillar-header">
+          <div class="pillar-num" style="color:var(--sky)">
+            <span style="width:20px;height:20px;border-radius:6px;background:var(--sky-l);display:flex;align-items:center;justify-content:center;font-size:11px">🗺</span>
+            Pilar 3
+          </div>
+          <div class="pillar-title">El Administrador</div>
+          <div class="pillar-sub">Panel web con mapa en tiempo real, rastro de entregas y control de toda la flota desde un solo lugar.</div>
+        </div>
+        <div class="admin-mockup">
+          <div class="admin-topbar">
+            <span class="admin-live-dot"></span>
+            <span class="admin-live-label">En vivo</span>
+            <span class="admin-topbar-title" style="margin-left:8px">Mapa de flota</span>
+            <span style="font-size:10px;color:var(--muted)">2 vehículos activos</span>
+          </div>
+          <div class="admin-map-area">
+            <div class="admin-map-grid"></div>
+            <div class="admin-truck t1">🚚</div>
+            <div class="admin-truck t2">🚚</div>
+            <div class="admin-pin-green g1">✓</div>
+            <div class="admin-pin-green g2">✓</div>
+            <div class="admin-pin-green g3">✓</div>
+          </div>
+          <div class="admin-stats">
+            <div class="admin-stat">
+              <div class="admin-stat-num" style="color:var(--accent)">2</div>
+              <div class="admin-stat-lbl">En ruta</div>
+            </div>
+            <div class="admin-stat">
+              <div class="admin-stat-num" style="color:var(--success)">3</div>
+              <div class="admin-stat-lbl">Entregados</div>
+            </div>
+            <div class="admin-stat">
+              <div class="admin-stat-num" style="color:var(--warn)">1</div>
+              <div class="admin-stat-lbl">Pendientes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES STRIP ─────────────────────────────────────────────────────── -->
+<div class="features-strip">
+  <div class="container">
+    <div class="strip-item">
+      <div class="strip-icon">⚡</div>
+      <div class="strip-title">Tiempo real sin demoras</div>
+      <div class="strip-desc">GPS cada 5 segundos, pines actualizados al instante vía WebSocket.</div>
+    </div>
+    <div class="strip-item">
+      <div class="strip-icon">🔒</div>
+      <div class="strip-title">Multi-empresa aislado</div>
+      <div class="strip-desc">Cada empresa ve solo sus datos. Cero filtración de información entre clientes.</div>
+    </div>
+    <div class="strip-item">
+      <div class="strip-icon">📸</div>
+      <div class="strip-title">Prueba de entrega digital</div>
+      <div class="strip-desc">Foto obligatoria al entregar. Auditoría completa disponible siempre.</div>
+    </div>
+    <div class="strip-item">
+      <div class="strip-icon">🔔</div>
+      <div class="strip-title">Alertas con sonido</div>
+      <div class="strip-desc">La tienda sabe cuando el repartidor está a 500m, con notificación sonora automática.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CTA ────────────────────────────────────────────────────────────────── -->
+<section class="cta-section" id="contacto">
+  <div class="section-label" style="display:inline-flex;margin-bottom:16px">Empezá hoy</div>
+  <h2 class="section-title">¿Listo para digitalizar tu flota?</h2>
+  <p class="section-sub">Implementación en menos de 24hs. Sin contratos largos. Sin hardware adicional. Solo resultados.</p>
+  <div class="cta-btns">
+    <a href="mailto:hola@fleettrack.app" class="btn btn-primary" style="font-size:15px;padding:13px 28px">
+      Solicitar demo gratuita →
+    </a>
+    <a href="tel:+542990000000" class="btn btn-outline" style="font-size:15px;padding:13px 28px">
+      📞 Hablar con ventas
+    </a>
+  </div>
+  <p class="cta-note">Sin tarjeta de crédito · Demo en vivo con tus datos · Soporte incluido</p>
+</section>
+
+<!-- ── FOOTER ─────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-logo">⚡ FleetTrack</div>
+  <div>Trazabilidad total para flotas en movimiento.</div>
+  <div style="display:flex;gap:20px">
+    <a href="#">Privacidad</a>
+    <a href="#">Términos</a>
+    <a href="mailto:hola@fleettrack.app">Contacto</a>
+  </div>
+</footer>
+
+</body>
+</html>

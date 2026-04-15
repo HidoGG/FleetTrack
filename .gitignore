@@ -1,0 +1,32 @@
+# Credenciales — NUNCA subir
+.env
+.env.local
+.env.production
+src/frontend/.env
+src/mobile/.env
+
+# Dependencias
+node_modules/
+.npm/
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code (local, no compartir)
+.claude/settings.local.json
+
+# Testing
+/coverage
+playwright-report/
+test-results/

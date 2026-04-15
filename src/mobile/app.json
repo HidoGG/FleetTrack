@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "FleetTrack",
+    "slug": "fleettrack-driver",
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f8fafc",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "backgroundColor": "#0f172a",
+      "resizeMode": "contain"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4f46e5"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ],
+      "package": "com.fleettrack.driver"
+    },
+    "ios": {
+      "bundleIdentifier": "com.fleettrack.driver",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FleetTrack necesita tu ubicación para registrar el recorrido del viaje.",
+        "NSLocationAlwaysUsageDescription": "FleetTrack necesita tu ubicación en segundo plano durante los viajes activos."
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "FleetTrack necesita tu ubicación para rastrear tus viajes."
+        }
+      ]
+    ]
+  }
+}
