@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Building2, Plus, ShieldCheck, ShieldOff, Users, UserPlus } from 'lucide-react'
 import { api } from '../services/api'
@@ -6,6 +6,14 @@ import { api } from '../services/api'
 const EMPTY_COMPANY = {
   name: '',
   plan: 'basic',
+}
+
+const EMPTY_COMPANY_EDIT = {
+  name: '',
+  plan: 'basic',
+  commercial_name: '',
+  email: '',
+  phone: '',
 }
 
 const EMPTY_PROFILE = {
@@ -34,8 +42,10 @@ export default function SuperAdminPage() {
   const qc = useQueryClient()
   const [selectedCompany, setSelectedCompany] = useState(null)
   const [showCompanyForm, setShowCompanyForm] = useState(false)
+  const [showCompanyEditForm, setShowCompanyEditForm] = useState(false)
   const [showProfileForm, setShowProfileForm] = useState(false)
   const [companyForm, setCompanyForm] = useState(EMPTY_COMPANY)
+  const [companyEditForm, setCompanyEditForm] = useState(EMPTY_COMPANY_EDIT)
   const [profileForm, setProfileForm] = useState(EMPTY_PROFILE)
 
   const { data: companies = [], isLoading: companiesLoading } = useQuery({
@@ -53,6 +63,12 @@ export default function SuperAdminPage() {
     () => new Map(companies.map((company) => [company.id, company])),
     [companies]
   )
+
+  useEffect(() => {
+    if (!selectedCompany?.id) return
+    const refreshed = companyById.get(selectedCompany.id)
+    if (refreshed) setSelectedCompany(refreshed)
+  }, [companyById, selectedCompany?.id])
 
   const createCompany = useMutation({
     mutationFn: api.createCompany,
@@ -72,6 +88,15 @@ export default function SuperAdminPage() {
         const updated = companyById.get(variables.id)
         if (updated) setSelectedCompany({ ...updated, state: variables.state })
       }
+    },
+  })
+
+  const updateCompany = useMutation({
+    mutationFn: ({ id, data }) => api.updateCompany(id, data),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['super-admin', 'companies'] })
+      setSelectedCompany(updated)
+      setShowCompanyEditForm(false)
     },
   })
 
@@ -101,6 +126,11 @@ export default function SuperAdminPage() {
     setProfileForm((current) => ({ ...current, [name]: value }))
   }
 
+  function handleCompanyEditChange(event) {
+    const { name, value } = event.target
+    setCompanyEditForm((current) => ({ ...current, [name]: value }))
+  }
+
   function submitCompany(event) {
     event.preventDefault()
     createCompany.mutate({
@@ -128,6 +158,35 @@ export default function SuperAdminPage() {
 
   function triggerCompanyState(company, state) {
     changeCompanyState.mutate({ id: company.id, state })
+  }
+
+  function openCompanyEdit(company) {
+    setSelectedCompany(company)
+    setCompanyEditForm({
+      name: company.name || '',
+      plan: company.plan || 'basic',
+      commercial_name: company.commercial_name || '',
+      email: company.email || '',
+      phone: company.phone || '',
+    })
+    setShowCompanyEditForm(true)
+    setShowCompanyForm(false)
+  }
+
+  function submitCompanyEdit(event) {
+    event.preventDefault()
+    if (!selectedCompany?.id) return
+
+    updateCompany.mutate({
+      id: selectedCompany.id,
+      data: {
+        name: companyEditForm.name.trim(),
+        plan: companyEditForm.plan,
+        commercial_name: companyEditForm.commercial_name.trim() || null,
+        email: companyEditForm.email.trim() || null,
+        phone: companyEditForm.phone.trim() || null,
+      },
+    })
   }
 
   function triggerProfileState(profile) {
@@ -205,6 +264,83 @@ export default function SuperAdminPage() {
         </div>
       )}
 
+      {showCompanyEditForm && selectedCompany && (
+        <div className="card" style={{ padding: 22, marginBottom: 20 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 18 }}>
+            Editar empresa: {selectedCompany.name}
+          </h3>
+          <form onSubmit={submitCompanyEdit}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 16 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 5, fontSize: 12.5, fontWeight: 500, color: 'var(--text2)' }}>
+                  Nombre *
+                </label>
+                <input
+                  name="name"
+                  value={companyEditForm.name}
+                  onChange={handleCompanyEditChange}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 5, fontSize: 12.5, fontWeight: 500, color: 'var(--text2)' }}>
+                  Plan
+                </label>
+                <select name="plan" value={companyEditForm.plan} onChange={handleCompanyEditChange}>
+                  <option value="basic">basic</option>
+                  <option value="pro">pro</option>
+                  <option value="enterprise">enterprise</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 5, fontSize: 12.5, fontWeight: 500, color: 'var(--text2)' }}>
+                  Nombre comercial
+                </label>
+                <input
+                  name="commercial_name"
+                  value={companyEditForm.commercial_name}
+                  onChange={handleCompanyEditChange}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 5, fontSize: 12.5, fontWeight: 500, color: 'var(--text2)' }}>
+                  Email
+                </label>
+                <input
+                  name="email"
+                  type="email"
+                  value={companyEditForm.email}
+                  onChange={handleCompanyEditChange}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 5, fontSize: 12.5, fontWeight: 500, color: 'var(--text2)' }}>
+                  Teléfono
+                </label>
+                <input
+                  name="phone"
+                  value={companyEditForm.phone}
+                  onChange={handleCompanyEditChange}
+                />
+              </div>
+            </div>
+            {updateCompany.error && (
+              <p style={{ color: 'var(--danger)', fontSize: 12.5, marginBottom: 12 }}>
+                {updateCompany.error.message}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="submit" className="btn-primary" disabled={updateCompany.isPending}>
+                {updateCompany.isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setShowCompanyEditForm(false)}>
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: 22 }}>
         <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
           <Building2 size={18} color="var(--accent)" />
@@ -262,6 +398,13 @@ export default function SuperAdminPage() {
                         }}
                       >
                         Ver perfiles
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        style={{ padding: '5px 10px', fontSize: 12 }}
+                        onClick={() => openCompanyEdit(company)}
+                      >
+                        Editar
                       </button>
                       {company.state !== 'active' && (
                         <button
