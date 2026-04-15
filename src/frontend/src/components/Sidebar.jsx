@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Map, Truck, Users, Route, LogOut, Zap, Package } from 'lucide-react'
+import { LayoutDashboard, Map, Truck, Users, Route, LogOut, Zap, Package, Shield } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { api } from '../services/api'
 
@@ -25,6 +25,9 @@ export default function Sidebar() {
   const initials = profile?.full_name
     ? profile.full_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
     : 'A'
+  const navItems = profile?.role === 'super_admin'
+    ? [...NAV, { to: '/super-admin', label: 'Plataforma', Icon: Shield }]
+    : NAV
 
   return (
     <aside style={{
@@ -70,7 +73,7 @@ export default function Sidebar() {
         }}>
           Menú
         </p>
-        {NAV.map(({ to, label, Icon }) => (
+        {navItems.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}

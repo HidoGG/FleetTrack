@@ -90,4 +90,13 @@ export const api = {
   getTrip: (id) => request(`/trips/${id}`),
   startTrip: (data) => request('/trips/start', { method: 'POST', body: JSON.stringify(data) }),
   endTrip: (id, data) => request(`/trips/${id}/end`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Super Admin / Companies
+  getCompanies: () => request('/companies'),
+  createCompany: (data) => request('/companies', { method: 'POST', body: JSON.stringify(data) }),
+  updateCompany: (id, data) => request(`/companies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  setCompanyState: (id, state) => request(`/companies/${id}/state`, { method: 'PATCH', body: JSON.stringify({ state }) }),
+  getCompanyProfiles: (companyId) => request(`/companies/${companyId}/profiles`),
+  createProfile: (companyId, data) => request(`/companies/${companyId}/profiles`, { method: 'POST', body: JSON.stringify(data) }),
+  setProfileState: (id, action, reason) => request(`/profiles/${id}/state`, { method: 'PATCH', body: JSON.stringify({ action, reason }) }),
 }
