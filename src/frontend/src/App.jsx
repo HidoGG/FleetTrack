@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AuthGuard    from './components/AuthGuard'
+import MapAccessGuard from './components/MapAccessGuard'
 import StoreGuard   from './components/StoreGuard'
 import SuperAdminGuard from './components/SuperAdminGuard'
 import Layout       from './components/Layout'
@@ -11,6 +12,7 @@ import VehiclesPage from './pages/VehiclesPage'
 import DriversPage  from './pages/DriversPage'
 import TripsPage    from './pages/TripsPage'
 import BultosPage   from './pages/BultosPage'
+import LocationsPage from './pages/LocationsPage'
 import SuperAdminPage from './pages/SuperAdminPage'
 import StoreDashboard from './pages/store/StoreDashboard'
 import NewOrderPage   from './pages/store/NewOrderPage'
@@ -30,7 +32,15 @@ export default function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="map"       element={<MapPage />} />
+          <Route
+            path="map"
+            element={
+              <MapAccessGuard>
+                <MapPage />
+              </MapAccessGuard>
+            }
+          />
+          <Route path="locations" element={<LocationsPage />} />
           <Route path="vehicles"  element={<VehiclesPage />} />
           <Route path="drivers"   element={<DriversPage />} />
           <Route path="trips"     element={<TripsPage />} />

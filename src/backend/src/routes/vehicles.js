@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authMiddleware, adminOnly } from '../middleware/auth.js'
+import { attachMapPolicy, requireCompanyMapAccess } from '../middleware/mapAccess.js'
 import {
   listVehicles,
   getVehicle,
@@ -12,10 +13,23 @@ import {
 const router = Router()
 
 router.use(authMiddleware)
+router.use(attachMapPolicy)
 
-router.get('/',                      listVehicles)
-router.get('/:id',                   getVehicle)
-router.get('/:id/location',          getVehicleLastLocation)
+router.get(
+  '/',
+  requireCompanyMapAccess(),
+  listVehicles,
+)
+router.get(
+  '/:id',
+  requireCompanyMapAccess(),
+  getVehicle,
+)
+router.get(
+  '/:id/location',
+  requireCompanyMapAccess({ capabilities: ['map.view.vehicle_last_location'] }),
+  getVehicleLastLocation,
+)
 router.post('/',      adminOnly,     createVehicle)
 router.put('/:id',    adminOnly,     updateVehicle)
 router.delete('/:id', adminOnly,     deleteVehicle)

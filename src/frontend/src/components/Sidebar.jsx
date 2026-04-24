@@ -1,11 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Map, Truck, Users, Route, LogOut, Zap, Package, Shield } from 'lucide-react'
+import { LayoutDashboard, Map, MapPin, Truck, Users, Route, LogOut, Zap, Package, Shield } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { api } from '../services/api'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard',    Icon: LayoutDashboard },
   { to: '/map',       label: 'Mapa en vivo', Icon: Map },
+  { to: '/locations', label: 'Ubicaciones',  Icon: MapPin },
   { to: '/vehicles',  label: 'Vehículos',    Icon: Truck },
   { to: '/drivers',   label: 'Conductores',  Icon: Users },
   { to: '/trips',     label: 'Viajes',       Icon: Route },
@@ -13,7 +14,7 @@ const NAV = [
 ]
 
 export default function Sidebar() {
-  const { profile, logout } = useAuthStore()
+  const { profile, mapAccess, logout } = useAuthStore()
   const navigate = useNavigate()
 
   async function handleLogout() {
@@ -25,9 +26,10 @@ export default function Sidebar() {
   const initials = profile?.full_name
     ? profile.full_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
     : 'A'
-  const navItems = profile?.role === 'super_admin'
+  const canAccessMap = mapAccess?.capabilities?.includes('map.view.company') ?? false
+  const navItems = (profile?.role === 'super_admin'
     ? [...NAV, { to: '/super-admin', label: 'Plataforma', Icon: Shield }]
-    : NAV
+    : NAV).filter((item) => item.to !== '/map' || canAccessMap)
 
   return (
     <aside style={{
@@ -77,6 +79,7 @@ export default function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            data-testid={to === '/bultos' ? 'sidebar-link-bultos' : to === '/drivers' ? 'sidebar-link-drivers' : to === '/vehicles' ? 'sidebar-link-vehicles' : undefined}
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',

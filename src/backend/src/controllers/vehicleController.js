@@ -1,7 +1,8 @@
 import { supabase } from '../db/supabase.js'
 
 export async function listVehicles(req, res) {
-  const { data, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data, error } = await db
     .from('vehicles')
     .select('*')
     .eq('company_id', req.profile.company_id)
@@ -12,7 +13,8 @@ export async function listVehicles(req, res) {
 }
 
 export async function getVehicle(req, res) {
-  const { data, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data, error } = await db
     .from('vehicles')
     .select('*')
     .eq('id', req.params.id)
@@ -24,12 +26,13 @@ export async function getVehicle(req, res) {
 }
 
 export async function createVehicle(req, res) {
+  const db = req.supabase ?? supabase
   const { plate, brand, model, year, color } = req.body
   if (!plate || !brand || !model) {
     return res.status(400).json({ error: 'plate, brand y model son requeridos' })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('vehicles')
     .insert({ plate, brand, model, year, color, company_id: req.profile.company_id })
     .select()
@@ -40,9 +43,10 @@ export async function createVehicle(req, res) {
 }
 
 export async function updateVehicle(req, res) {
+  const db = req.supabase ?? supabase
   const { plate, brand, model, year, color, status, odometer_km } = req.body
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('vehicles')
     .update({ plate, brand, model, year, color, status, odometer_km })
     .eq('id', req.params.id)
@@ -55,7 +59,8 @@ export async function updateVehicle(req, res) {
 }
 
 export async function deleteVehicle(req, res) {
-  const { error } = await supabase
+  const db = req.supabase ?? supabase
+  const { error } = await db
     .from('vehicles')
     .delete()
     .eq('id', req.params.id)
@@ -66,7 +71,18 @@ export async function deleteVehicle(req, res) {
 }
 
 export async function getVehicleLastLocation(req, res) {
-  const { data, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data: vehicle, error: vehicleError } = await db
+    .from('vehicles')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('company_id', req.profile.company_id)
+    .maybeSingle()
+
+  if (vehicleError) return res.status(500).json({ error: vehicleError.message })
+  if (!vehicle) return res.status(404).json({ error: 'Vehículo no encontrado' })
+
+  const { data, error } = await db
     .from('locations')
     .select('lat, lng, speed_kmh, heading, timestamp')
     .eq('vehicle_id', req.params.id)

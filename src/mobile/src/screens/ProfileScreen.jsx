@@ -28,6 +28,7 @@ export default function ProfileScreen() {
   const name  = profile?.full_name || user?.email || 'Conductor'
   const email = user?.email || ''
   const role  = profile?.role || 'driver'
+  const roleLabel = role === 'store' ? 'punto de despacho' : role
 
   return (
     <View style={styles.container}>
@@ -44,7 +45,7 @@ export default function ProfileScreen() {
       <View style={styles.badgeRow}>
         <View style={styles.badge}>
           <Feather name="shield" size={12} color={colors.accent} />
-          <Text style={styles.badgeText}>{role}</Text>
+          <Text style={styles.badgeText}>{roleLabel}</Text>
         </View>
       </View>
 

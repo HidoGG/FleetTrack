@@ -1,6 +1,7 @@
 import * as Location from 'expo-location'
 import { io } from 'socket.io-client'
 import { api } from './api'
+import { useAuthStore } from '../store/authStore'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
 const TAG = '[LocationService]'
@@ -12,6 +13,18 @@ let lastKnownPos  = null
 let currentTripId    = null
 let currentVehicleId = null
 let onPositionUpdate = null
+
+function getSocketOptions() {
+  const token = useAuthStore.getState().token
+  if (!token) {
+    throw new Error('No autenticado para realtime')
+  }
+
+  return {
+    auth: { token },
+    transports: ['websocket', 'polling'],
+  }
+}
 
 // ─── Permisos ────────────────────────────────────────────────────────────────
 
@@ -88,7 +101,7 @@ export async function startTracking(tripId, vehicleId, positionCallback = null) 
   onPositionUpdate = positionCallback
 
   // Conectar Socket.io
-  socket = io(API_URL, { transports: ['websocket', 'polling'] })
+  socket = io(API_URL, getSocketOptions())
   socket.on('connect',    () => console.log(`${TAG} Socket conectado: ${socket.id}`))
   socket.on('disconnect', () => console.log(`${TAG} Socket desconectado`))
   socket.on('connect_error', (err) => console.error(`${TAG} Socket error:`, err.message))
@@ -180,7 +193,7 @@ export async function startBultoTracking(vehicleId, positionCallback = null) {
   bultoVehicleId  = vehicleId
   bultoOnPosition = positionCallback
 
-  bultoSocket = io(API_URL, { transports: ['websocket', 'polling'] })
+  bultoSocket = io(API_URL, getSocketOptions())
   bultoSocket.on('connect',       () => console.log(`${TAG} Bulto socket conectado: ${bultoSocket.id}`))
   bultoSocket.on('disconnect',    () => console.log(`${TAG} Bulto socket desconectado`))
   bultoSocket.on('connect_error', (e) => console.error(`${TAG} Bulto socket error:`, e.message))

@@ -5,7 +5,8 @@ import {
   Package, Clock, ShoppingBag, Truck, AlertCircle, CheckCircle,
   Bell, BellRing, MapPin, X, Volume2, Tag, Weight,
 } from 'lucide-react'
-import { api } from '../../services/api'
+import { useAuthStore } from '../../store/authStore'
+import { api, getLocationId } from '../../services/api'
 
 // ── Metadatos de estado ───────────────────────────────────────────────────────
 const STATUS_META = {
@@ -61,6 +62,18 @@ function playAlert(type) {
   else                                 { playBeep(880, 0.18) }
 }
 
+function getRealtimeEventKey(eventName, payload = {}) {
+  const orderId = payload.orderId ?? payload.order_id ?? null
+
+  if (eventName === 'driver_nearby') {
+    const vehicleId = payload.vehicleId ?? payload.vehicle_id ?? 'na'
+    const distMeters = payload.distMeters ?? payload.dist_meters ?? 'na'
+    return `${eventName}:${vehicleId}:${orderId ?? 'na'}:${distMeters}`
+  }
+
+  return orderId ? `${eventName}:${orderId}` : null
+}
+
 // ── CSS de animaciones inyectado una vez ──────────────────────────────────────
 const BLINK_STYLE = `
 @keyframes ft-blink {
@@ -87,6 +100,8 @@ function injectStyles() {
 export default function StoreDashboard() {
   injectStyles()
   const qc = useQueryClient()
+  const profile = useAuthStore((s) => s.profile)
+  const token = useAuthStore((s) => s.token)
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['store-orders'],
@@ -100,15 +115,38 @@ export default function StoreDashboard() {
   const [driverInfo,   setDriverInfo]   = useState(null)   // { lat, lng, distMeters }
   const [loadingReady, setLoadingReady] = useState(null)
   const socketRef = useRef(null)
+  const realtimeEventCacheRef = useRef(new Map())
 
-  const myStoreId = orders.find(o => o.store_id)?.store_id || null
+  const myLocationId = getLocationId(profile) ?? getLocationId(orders[0]) ?? null
 
   // ── Socket ────────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (!token) return undefined
+
     const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001', {
+      auth: { token },
       transports: ['websocket', 'polling'],
     })
     socketRef.current = socket
+    realtimeEventCacheRef.current.clear()
+
+    function shouldHandleRealtimeEvent(eventName, payload) {
+      const eventKey = getRealtimeEventKey(eventName, payload)
+      if (!eventKey) return true
+
+      const cache = realtimeEventCacheRef.current
+      const now = Date.now()
+      const lastSeen = cache.get(eventKey) || 0
+
+      // Evita duplicados cuando el mismo evento entra por location y store.
+      if (now - lastSeen < 2000) return false
+
+      cache.set(eventKey, now)
+      for (const [key, ts] of cache) {
+        if (now - ts > 60_000) cache.delete(key)
+      }
+      return true
+    }
 
     function pushAlert(type, extra = {}) {
       playAlert(type)
@@ -119,36 +157,66 @@ export default function StoreDashboard() {
       if (tab !== 'alerts') setUnread(n => n + 1)
     }
 
-    if (myStoreId) {
-      socket.on(`store:${myStoreId}:order_ready`, (p) => {
+    if (myLocationId) {
+      const handleOrderReady = (p) => {
+        if (!shouldHandleRealtimeEvent('order_ready', p)) return
         pushAlert('order_ready', { orderId: p.orderId })
         qc.invalidateQueries({ queryKey: ['store-orders'] })
-      })
-      socket.on(`store:${myStoreId}:order_accepted`, (p) => {
+      }
+      const handleOrderAccepted = (p) => {
+        if (!shouldHandleRealtimeEvent('order_accepted', p)) return
         pushAlert('order_accepted', { orderId: p.orderId })
         qc.invalidateQueries({ queryKey: ['store-orders'] })
-      })
-      socket.on(`store:${myStoreId}:driver_nearby`, (p) => {
+      }
+      const handleDriverNearby = (p) => {
+        if (!shouldHandleRealtimeEvent('driver_nearby', p)) return
         pushAlert('driver_nearby', { distMeters: p.distMeters })
         // Solo mostrar el mini-mapa si está a ≤2km
         if (p.distMeters <= 2000) {
           setDriverInfo({ lat: p.lat, lng: p.lng, distMeters: p.distMeters })
         }
-      })
-      socket.on(`store:${myStoreId}:order_picked_up`, () => {
+      }
+      const handleOrderPickedUp = (p = {}) => {
+        if (!shouldHandleRealtimeEvent('order_picked_up', p)) return
         setDriverInfo(null)
         qc.invalidateQueries({ queryKey: ['store-orders'] })
-      })
-      socket.on(`store:${myStoreId}:order_delivered`, (p) => {
+      }
+      const handleOrderDelivered = (p) => {
+        if (!shouldHandleRealtimeEvent('order_delivered', p)) return
         pushAlert('order_delivered', { orderId: p.orderId })
         setDriverInfo(null)
         qc.invalidateQueries({ queryKey: ['store-orders'] })
-      })
+      }
+
+      const realtimeScopes = ['location', 'store']
+      const unsubscribers = []
+
+      for (const scope of realtimeScopes) {
+        const prefix = `${scope}:${myLocationId}`
+        socket.on(`${prefix}:order_ready`, handleOrderReady)
+        socket.on(`${prefix}:order_accepted`, handleOrderAccepted)
+        socket.on(`${prefix}:driver_nearby`, handleDriverNearby)
+        socket.on(`${prefix}:order_picked_up`, handleOrderPickedUp)
+        socket.on(`${prefix}:order_delivered`, handleOrderDelivered)
+        unsubscribers.push(() => {
+          socket.off(`${prefix}:order_ready`, handleOrderReady)
+          socket.off(`${prefix}:order_accepted`, handleOrderAccepted)
+          socket.off(`${prefix}:driver_nearby`, handleDriverNearby)
+          socket.off(`${prefix}:order_picked_up`, handleOrderPickedUp)
+          socket.off(`${prefix}:order_delivered`, handleOrderDelivered)
+        })
+      }
+
+      return () => {
+        unsubscribers.forEach((unsubscribe) => unsubscribe())
+        socket.disconnect()
+        socketRef.current = null
+      }
     }
 
     return () => { socket.disconnect(); socketRef.current = null }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myStoreId, qc])
+  }, [myLocationId, qc, token])
 
   useEffect(() => {
     if (tab === 'alerts') setUnread(0)
@@ -186,7 +254,7 @@ export default function StoreDashboard() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>Mis pedidos</h1>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 3 }}>
-            Estado de los despachos de tu sucursal.
+            Estado operativo de los despachos de tu sucursal.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 4, background: 'var(--bg)', borderRadius: 10, padding: 4, border: '1px solid var(--border)' }}>

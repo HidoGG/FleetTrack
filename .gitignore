@@ -30,5 +30,7 @@ Thumbs.db
 /coverage
 playwright-report/
 test-results/
+tests/e2e/__pycache__/
+tests/e2e/artifacts/
 
 .claude/

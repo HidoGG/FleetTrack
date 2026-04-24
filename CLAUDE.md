@@ -25,6 +25,8 @@
 ---
 
 ## Protocolo de Trabajo
+0. `AGENTS.md` v2.2 es el estandar operativo transversal. Si no entra en conflicto con estas instrucciones maestras, seguirlo para roles, gates, handoffs y definicion de done.
+0.1. Antes de actuar, todo agente debe consultar tambien la seccion `Evolucion De Capacidades y Orquestacion Senior` de `AGENTS.md` y ejecutar el bloque con ese piso tecnico.
 1. Usar **contexto mínimo suficiente**.
 2. Antes de actuar, definir el contrato de la tarea en forma breve:
    - **Input**

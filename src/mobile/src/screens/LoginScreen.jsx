@@ -43,7 +43,7 @@ export default function LoginScreen() {
           <Feather name="zap" size={28} color="#fff" />
         </View>
         <Text style={styles.logoTitle}>FleetTrack</Text>
-        <Text style={styles.logoSub}>Panel del Conductor</Text>
+        <Text style={styles.logoSub}>Operación de Campo</Text>
       </View>
 
       {/* Card del formulario */}

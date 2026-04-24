@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const data = await api.login(email, password)
-      login(data.token, data.user)
+      login(data.token, data.user, data.map_access ?? data.user?.map_access)
       // Redirigir según rol
       const role = data.user?.profile?.role
       navigate(role === 'store' ? '/store/dashboard' : '/dashboard')

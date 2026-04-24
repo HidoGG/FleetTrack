@@ -26,7 +26,7 @@ cp .env.example .env
 ```
 Completá los valores reales (Supabase, GitHub, Vercel, Stripe).
 
-### 4. Activar los MCPs en Antigravity
+### 4. ActivaMr los CPs en Antigravity
 Antigravity tiene un MCP Store integrado. Accedés desde el panel de agentes (los "..." del menú superior).
 También podés cargar el archivo `.claude/mcp_config.json` desde ahí para importar todos los servidores.
 

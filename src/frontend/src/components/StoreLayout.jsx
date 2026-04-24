@@ -26,7 +26,7 @@ export default function StoreLayout() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
 
-      {/* Sidebar mínimo para tienda */}
+      {/* Sidebar mínimo para portal de despacho */}
       <aside style={{
         width: 220, flexShrink: 0,
         background: 'var(--surface)', borderRight: '1px solid var(--border)',
@@ -38,7 +38,7 @@ export default function StoreLayout() {
             <Store size={16} color="#fff" />
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Portal Tienda</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Portal de Despacho</div>
             <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{profile?.full_name || 'Sucursal'}</div>
           </div>
         </div>
@@ -71,9 +71,9 @@ export default function StoreLayout() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {profile?.full_name || 'Tienda'}
+              {profile?.full_name || 'Punto de Despacho'}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Rol: tienda</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Rol: punto de despacho</div>
           </div>
           <button onClick={handleLogout} style={{ padding: 6, background: 'transparent', color: 'var(--muted)', borderRadius: 6 }} title="Salir">
             <LogOut size={14} />

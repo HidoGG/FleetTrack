@@ -15,6 +15,10 @@ CREATE TABLE companies (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name        TEXT NOT NULL,
   plan        TEXT NOT NULL DEFAULT 'basic' CHECK (plan IN ('basic', 'pro', 'enterprise')),
+  commercial_status TEXT NOT NULL DEFAULT 'trial' CHECK (commercial_status IN ('trial', 'active', 'past_due', 'paused', 'cancelled')),
+  feature_flags JSONB NOT NULL DEFAULT '{}'::jsonb,
+  limits_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  addons      JSONB NOT NULL DEFAULT '[]'::jsonb,
   is_active   BOOLEAN NOT NULL DEFAULT TRUE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
   Package, Plus, Trash2, Lock, Unlock, MapPin,
   AlertTriangle, CheckCircle, XCircle, Eye, EyeOff,
-  ShoppingBag, Store,
+  ShoppingBag,
 } from 'lucide-react'
-import { api } from '../services/api'
-
-// ─── helpers ────────────────────────────────────────────────────────────────
+import { api, getLocationId } from '../services/api'
 
 function fmt(iso) {
   if (!iso) return '—'
@@ -18,87 +17,133 @@ function fmt(iso) {
 }
 
 const STATUS_META = {
-  PENDING:    { label: 'Pendiente',   bg: '#fef3c7', color: '#d97706', Icon: AlertTriangle },
-  IN_TRANSIT: { label: 'En camino',   bg: 'var(--accent-l)', color: 'var(--accent)', Icon: MapPin },
-  DELIVERED:  { label: 'Entregado',   bg: 'var(--success-l)', color: '#059669', Icon: CheckCircle },
-  FAILED:     { label: 'Fallido',     bg: '#fee2e2', color: '#dc2626', Icon: XCircle },
+  PENDING: { label: 'Pendiente', bg: '#fef3c7', color: '#d97706', Icon: AlertTriangle },
+  IN_TRANSIT: { label: 'En camino', bg: 'var(--accent-l)', color: 'var(--accent)', Icon: MapPin },
+  DELIVERED: { label: 'Entregado', bg: 'var(--success-l)', color: '#059669', Icon: CheckCircle },
+  FAILED: { label: 'Fallido', bg: '#fee2e2', color: '#dc2626', Icon: XCircle },
 }
 
 const ACCES_META = {
-  OK:            { label: 'OK',              bg: 'var(--success-l)', color: '#059669', Icon: CheckCircle },
-  COUNT_MISMATCH:{ label: 'Dif. conteo',    bg: '#fef3c7',          color: '#d97706', Icon: AlertTriangle },
-  WRONG_CODE:    { label: 'Cód. incorrecto', bg: '#fee2e2',          color: '#dc2626', Icon: XCircle },
-  BLOCKED:       { label: 'Bloqueado',       bg: '#fee2e2',          color: '#dc2626', Icon: Lock },
+  OK: { label: 'OK', bg: 'var(--success-l)', color: '#059669', Icon: CheckCircle },
+  COUNT_MISMATCH: { label: 'Dif. conteo', bg: '#fef3c7', color: '#d97706', Icon: AlertTriangle },
+  WRONG_CODE: { label: 'Cód. incorrecto', bg: '#fee2e2', color: '#dc2626', Icon: XCircle },
+  BLOCKED: { label: 'Bloqueado', bg: '#fee2e2', color: '#dc2626', Icon: Lock },
 }
 
-const TABS = ['Lotes', 'Pedidos', 'Sucursales', 'Bloqueos', 'Historial']
+const TABS = ['Lotes', 'Pedidos', 'Bloqueos', 'Historial']
 
-// ─── componente ─────────────────────────────────────────────────────────────
+const LOCATION_TYPE_LABELS = {
+  store: 'Sucursal',
+  branch: 'Punto de Despacho',
+  warehouse: 'Depósito',
+  logistics: 'Logística',
+  office: 'Oficina / admin',
+  pickup: 'Punto de retiro',
+  other: 'Otro',
+}
 
 export default function BultosPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState('Lotes')
 
-  // ── Queries ────────────────────────────────────────────────────────────────
-  const { data: bultos  = [], isLoading: loadBultos  } = useQuery({ queryKey: ['bultos'],        queryFn: api.getBultos })
-  const { data: orders  = [], isLoading: loadOrders  } = useQuery({ queryKey: ['orders'],         queryFn: () => api.getOrders() })
-  const { data: stores  = [], isLoading: loadStores  } = useQuery({ queryKey: ['stores'],         queryFn: api.getStores })
+  const { data: bultos = [], isLoading: loadBultos } = useQuery({ queryKey: ['bultos'], queryFn: api.getBultos })
+  const { data: orders = [], isLoading: loadOrders } = useQuery({ queryKey: ['orders'], queryFn: () => api.getOrders() })
+  const { data: locations = [] } = useQuery({ queryKey: ['locations'], queryFn: api.getLocations })
   const { data: blocked = [], isLoading: loadBlocked } = useQuery({ queryKey: ['bultos-blocked'], queryFn: api.getBlockedRiders, refetchInterval: 15_000 })
-  const { data: accesos = [], isLoading: loadAccesos } = useQuery({ queryKey: ['accesos-lote'],   queryFn: api.getAccesosLog })
+  const { data: accesos = [], isLoading: loadAccesos } = useQuery({ queryKey: ['accesos-lote'], queryFn: api.getAccesosLog })
 
-  // ── Mutaciones ─────────────────────────────────────────────────────────────
-  const createBultoMut  = useMutation({ mutationFn: api.createBulto,  onSuccess: () => { qc.invalidateQueries({ queryKey: ['bultos'] });  setShowBultoForm(false);  resetBultoForm() } })
-  const deleteBultoMut  = useMutation({ mutationFn: api.deleteBulto,  onSuccess: () => qc.invalidateQueries({ queryKey: ['bultos'] }) })
-  const createOrderMut  = useMutation({ mutationFn: api.createOrder,  onSuccess: () => { qc.invalidateQueries({ queryKey: ['orders'] });  setShowOrderForm(false);  resetOrderForm() } })
-  const deleteOrderMut  = useMutation({ mutationFn: api.deleteOrder,  onSuccess: () => qc.invalidateQueries({ queryKey: ['orders'] }) })
-  const createStoreMut  = useMutation({ mutationFn: api.createStore,  onSuccess: () => { qc.invalidateQueries({ queryKey: ['stores'] });  setShowStoreForm(false);  resetStoreForm() } })
-  const deleteStoreMut  = useMutation({ mutationFn: api.deleteStore,  onSuccess: () => qc.invalidateQueries({ queryKey: ['stores'] }) })
+  const createBultoMut = useMutation({
+    mutationFn: api.createBulto,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bultos'] })
+      setShowBultoForm(false)
+      resetBultoForm()
+    },
+  })
+  const deleteBultoMut = useMutation({
+    mutationFn: api.deleteBulto,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bultos'] }),
+  })
+  const createOrderMut = useMutation({
+    mutationFn: api.createOrder,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      setShowOrderForm(false)
+      resetOrderForm()
+    },
+  })
+  const deleteOrderMut = useMutation({
+    mutationFn: api.deleteOrder,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['orders'] }),
+  })
 
-  // ── Formularios ────────────────────────────────────────────────────────────
   const [showBultoForm, setShowBultoForm] = useState(false)
   const [bultoForm, setBultoForm] = useState({ codigo_lote: '', cantidad_esperada: '', clave_desbloqueo: '', descripcion: '' })
   function resetBultoForm() { setBultoForm({ codigo_lote: '', cantidad_esperada: '', clave_desbloqueo: '', descripcion: '' }) }
 
   const [showOrderForm, setShowOrderForm] = useState(false)
-  const [orderForm, setOrderForm] = useState({ bulto_id: '', customer_name: '', customer_phone: '', delivery_address: '', delivery_lat: '', delivery_lng: '', notes: '', payment_amount: '' })
-  function resetOrderForm() { setOrderForm({ bulto_id: '', customer_name: '', customer_phone: '', delivery_address: '', delivery_lat: '', delivery_lng: '', notes: '', payment_amount: '' }) }
-
-  const [showStoreForm, setShowStoreForm] = useState(false)
-  const [storeForm, setStoreForm] = useState({ name: '', address: '', lat: '', lng: '' })
-  function resetStoreForm() { setStoreForm({ name: '', address: '', lat: '', lng: '' }) }
+  const [orderForm, setOrderForm] = useState({
+    bulto_id: '',
+    location_id: '',
+    customer_name: '',
+    customer_phone: '',
+    delivery_address: '',
+    delivery_lat: '',
+    delivery_lng: '',
+    notes: '',
+    payment_amount: '',
+  })
+  function resetOrderForm() {
+    setOrderForm({
+      bulto_id: '',
+      location_id: '',
+      customer_name: '',
+      customer_phone: '',
+      delivery_address: '',
+      delivery_lat: '',
+      delivery_lng: '',
+      notes: '',
+      payment_amount: '',
+    })
+  }
 
   const [revealedKeys, setRevealedKeys] = useState({})
   function toggleReveal(id) { setRevealedKeys((p) => ({ ...p, [id]: !p[id] })) }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const activeLocations = locations.filter((location) => location.is_active !== false)
+  const riderVisibleLocations = activeLocations.filter((location) => location.rider_visible !== false)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* Título + Tabs */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700 }}>Control de Lotes</h1>
             <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 3 }}>
-              Gestioná lotes, pedidos, sucursales y bloqueos de repartidores.
+              Gestioná lotes, pedidos y bloqueos de repartidores. Las ubicaciones se administran desde{' '}
+              <Link to="/locations" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                Ubicaciones
+              </Link>.
             </p>
           </div>
-          {tab === 'Lotes'      && <button className="btn-primary" onClick={() => setShowBultoForm((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><Plus size={14} /> Nuevo lote</button>}
-          {tab === 'Pedidos'    && <button className="btn-primary" onClick={() => setShowOrderForm((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><Plus size={14} /> Nuevo pedido</button>}
-          {tab === 'Sucursales' && <button className="btn-primary" onClick={() => setShowStoreForm((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><Plus size={14} /> Nueva sucursal</button>}
+          {tab === 'Lotes' && <button className="btn-primary" onClick={() => setShowBultoForm((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><Plus size={14} /> Nuevo lote</button>}
+          {tab === 'Pedidos' && <button data-testid="bultos-new-order-button" className="btn-primary" onClick={() => setShowOrderForm((v) => !v)} disabled={activeLocations.length === 0} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><Plus size={14} /> Nuevo pedido</button>}
         </div>
 
-        {/* Tab bar */}
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
           {TABS.map((t) => (
             <button
               key={t}
+              data-testid={t === 'Pedidos' ? 'bultos-tab-pedidos' : undefined}
               onClick={() => setTab(t)}
               style={{
-                padding: '8px 16px', fontSize: 13, fontWeight: tab === t ? 600 : 400,
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: tab === t ? 600 : 400,
                 color: tab === t ? 'var(--accent)' : 'var(--muted)',
                 borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
-                background: 'transparent', marginBottom: -1,
+                background: 'transparent',
+                marginBottom: -1,
                 transition: 'all .12s',
               }}
             >
@@ -113,14 +158,12 @@ export default function BultosPage() {
         </div>
       </div>
 
-      {/* ──────────── TAB: LOTES ──────────── */}
       {tab === 'Lotes' && (
         <>
           {showBultoForm && (
             <div className="card" style={{ padding: '20px 24px' }}>
               <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Nuevo lote</h3>
-              <form onSubmit={(e) => { e.preventDefault(); createBultoMut.mutate(bultoForm) }}
-                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <form onSubmit={(e) => { e.preventDefault(); createBultoMut.mutate(bultoForm) }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 {[
                   ['Código de lote *', 'codigo_lote', 'text', 'LOTE-001'],
                   ['Cantidad esperada *', 'cantidad_esperada', 'number', '24'],
@@ -129,9 +172,14 @@ export default function BultosPage() {
                 ].map(([label, key, type, ph]) => (
                   <label key={key} style={lblStyle}>
                     {label}
-                    <input className="input" type={type} placeholder={ph} required={label.includes('*')}
+                    <input
+                      className="input"
+                      type={type}
+                      placeholder={ph}
+                      required={label.includes('*')}
                       value={bultoForm[key]}
-                      onChange={(e) => setBultoForm({ ...bultoForm, [key]: type === 'text' && key === 'codigo_lote' ? e.target.value.toUpperCase() : e.target.value })} />
+                      onChange={(e) => setBultoForm({ ...bultoForm, [key]: type === 'text' && key === 'codigo_lote' ? e.target.value.toUpperCase() : e.target.value })}
+                    />
                   </label>
                 ))}
                 <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -170,27 +218,66 @@ export default function BultosPage() {
         </>
       )}
 
-      {/* ──────────── TAB: PEDIDOS ──────────── */}
       {tab === 'Pedidos' && (
         <>
+          <div className="card" style={{ padding: '18px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Ubicaciones canónicas para pedidos</div>
+                <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}>
+                  Cada pedido sale desde un <strong>Punto de Despacho</strong> definido en <Link to="/locations" style={{ color: 'var(--accent)', fontWeight: 600 }}>Ubicaciones</Link>. En este panel solo elegís una sucursal activa para operar.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span className="badge active">{activeLocations.length} activas</span>
+                <span className="badge">{riderVisibleLocations.length} puntos visibles para riders</span>
+              </div>
+            </div>
+            {activeLocations.length === 0 && (
+              <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, border: '1px solid #fcd34d', background: '#fffbeb' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#b45309', marginBottom: 4 }}>No hay ubicaciones activas para originar pedidos</div>
+                <p style={{ fontSize: 12.5, color: '#92400e', marginBottom: 10 }}>
+                  Antes de crear pedidos, activá o cargá un Punto de Despacho en la superficie canónica de <Link to="/locations" style={{ color: '#b45309', fontWeight: 700 }}>Ubicaciones</Link>.
+                </p>
+                <Link to="/locations" className="btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <MapPin size={14} />
+                  Ir a Ubicaciones
+                </Link>
+              </div>
+            )}
+          </div>
+
           {showOrderForm && (
             <div className="card" style={{ padding: '20px 24px' }}>
               <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Nuevo pedido</h3>
-              <form onSubmit={(e) => { e.preventDefault(); createOrderMut.mutate(orderForm) }}
-                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <form data-testid="bultos-order-form" onSubmit={(e) => { e.preventDefault(); createOrderMut.mutate(orderForm) }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <label style={lblStyle}>
                   Lote asociado
-                  <select className="input" value={orderForm.bulto_id} onChange={(e) => setOrderForm({ ...orderForm, bulto_id: e.target.value })}>
+                  <select data-testid="bultos-order-bulto-select" className="input" value={orderForm.bulto_id} onChange={(e) => setOrderForm({ ...orderForm, bulto_id: e.target.value })}>
                     <option value="">Sin lote</option>
                     {bultos.map((b) => <option key={b.id} value={b.id}>{b.codigo_lote}</option>)}
                   </select>
                 </label>
                 <label style={lblStyle}>
-                  Sucursal
-                  <select className="input" value={orderForm.store_id || ''} onChange={(e) => setOrderForm({ ...orderForm, store_id: e.target.value })}>
-                    <option value="">Sin sucursal</option>
-                    {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  Sucursal / Punto de Despacho *
+                  <select
+                    data-testid="bultos-order-location-select"
+                    className="input"
+                    value={orderForm.location_id}
+                    onChange={(e) => setOrderForm({ ...orderForm, location_id: e.target.value })}
+                    required
+                    disabled={activeLocations.length === 0}
+                  >
+                    <option value="">Sin Punto de Despacho</option>
+                    {activeLocations.map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name} · {LOCATION_TYPE_LABELS[location.location_type] || 'Otro'}
+                      </option>
+                    ))}
                   </select>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                    Las altas, bajas y cambios de estado se hacen desde <Link to="/locations" style={{ color: 'var(--accent)', fontWeight: 600 }}>Ubicaciones</Link>.
+                  </span>
                 </label>
                 {[
                   ['Nombre del cliente *', 'customer_name', 'text', 'Juan Pérez'],
@@ -203,31 +290,50 @@ export default function BultosPage() {
                 ].map(([label, key, type, ph]) => (
                   <label key={key} style={lblStyle}>
                     {label}
-                    <input className="input" type={type} placeholder={ph} required={label.includes('*')}
+                    <input
+                      data-testid={`bultos-order-${key}`}
+                      className="input"
+                      type={type}
+                      placeholder={ph}
+                      required={label.includes('*')}
                       value={orderForm[key]}
                       onChange={(e) => setOrderForm({ ...orderForm, [key]: e.target.value })}
-                      step={type === 'number' ? 'any' : undefined} />
+                      step={type === 'number' ? 'any' : undefined}
+                    />
                   </label>
                 ))}
                 <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                   <button type="button" className="btn-secondary" onClick={() => setShowOrderForm(false)}>Cancelar</button>
-                  <button type="submit" className="btn-primary" disabled={createOrderMut.isPending}>{createOrderMut.isPending ? 'Guardando…' : 'Crear pedido'}</button>
+                  <button data-testid="bultos-order-submit" type="submit" className="btn-primary" disabled={createOrderMut.isPending || activeLocations.length === 0}>{createOrderMut.isPending ? 'Guardando…' : 'Crear pedido'}</button>
                 </div>
               </form>
             </div>
           )}
           <TableCard title="Pedidos" count={orders.length} loading={loadOrders} Icon={ShoppingBag}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr style={{ background: 'var(--bg)' }}>{['Lote', 'Cliente / Dirección', 'Monto', 'Auditoría de fotos', 'Estado', 'Fecha', ''].map((h) => <th key={h} style={thS}>{h}</th>)}</tr></thead>
+              <thead><tr style={{ background: 'var(--bg)' }}>{['Lote', 'Origen', 'Cliente / Dirección', 'Monto', 'Auditoría de fotos', 'Estado', 'Fecha', ''].map((h) => <th key={h} style={thS}>{h}</th>)}</tr></thead>
               <tbody>
                 {orders.map((o) => {
                   const meta = STATUS_META[o.status] || STATUS_META.PENDING
                   const { Icon } = meta
                   const lote = bultos.find((b) => b.id === o.bulto_id)
+                  const orderLocation = locations.find((location) => location.id === getLocationId(o))
                   const hasAudit = o.invoice_photo_url || o.pod_photo_url
                   return (
                     <tr key={o.id} style={{ borderTop: '1px solid var(--border)' }}>
                       <td style={tdS}><code style={{ fontSize: 12 }}>{lote?.codigo_lote || '—'}</code></td>
+                      <td style={tdS}>
+                        {orderLocation ? (
+                          <>
+                            <div style={{ fontWeight: 600, fontSize: 12.5 }}>{orderLocation.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                              {LOCATION_TYPE_LABELS[orderLocation.location_type] || 'Otro'}
+                            </div>
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--muted2)', fontSize: 12 }}>Sin Punto de Despacho</span>
+                        )}
+                      </td>
                       <td style={tdS}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{o.customer_name}</div>
                         {o.customer_phone && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{o.customer_phone}</div>}
@@ -240,23 +346,16 @@ export default function BultosPage() {
                           ? <span style={{ color: '#059669' }}>${parseFloat(o.payment_amount).toLocaleString('es-AR')}</span>
                           : <span style={{ color: 'var(--muted2)', fontSize: 12 }}>—</span>}
                       </td>
-
-                      {/* ── Auditoría lado a lado ── */}
                       <td style={tdS}>
                         {hasAudit ? (
                           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                            {/* Factura (origen) */}
                             <div style={{ textAlign: 'center' }}>
                               <div style={{ fontSize: 9, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>
                                 Factura
                               </div>
                               {o.invoice_photo_url ? (
                                 <a href={o.invoice_photo_url} target="_blank" rel="noreferrer" title="Ver factura completa">
-                                  <img
-                                    src={o.invoice_photo_url}
-                                    alt="Factura"
-                                    style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 7, border: '2px solid #fcd34d', display: 'block' }}
-                                  />
+                                  <img src={o.invoice_photo_url} alt="Factura" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 7, border: '2px solid #fcd34d', display: 'block' }} />
                                 </a>
                               ) : (
                                 <div style={{ width: 52, height: 52, borderRadius: 7, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -264,22 +363,14 @@ export default function BultosPage() {
                                 </div>
                               )}
                             </div>
-
-                            {/* Flecha */}
                             <div style={{ paddingTop: 24, color: 'var(--muted2)', fontSize: 16 }}>→</div>
-
-                            {/* PoD (destino) */}
                             <div style={{ textAlign: 'center' }}>
                               <div style={{ fontSize: 9, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 4 }}>
                                 Entrega
                               </div>
                               {o.pod_photo_url ? (
                                 <a href={o.pod_photo_url} target="_blank" rel="noreferrer" title="Ver foto de entrega completa">
-                                  <img
-                                    src={o.pod_photo_url}
-                                    alt="PoD"
-                                    style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 7, border: '2px solid #6ee7b7', display: 'block' }}
-                                  />
+                                  <img src={o.pod_photo_url} alt="PoD" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 7, border: '2px solid #6ee7b7', display: 'block' }} />
                                 </a>
                               ) : (
                                 <div style={{ width: 52, height: 52, borderRadius: 7, border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -292,7 +383,6 @@ export default function BultosPage() {
                           <span style={{ fontSize: 12, color: 'var(--muted2)' }}>Sin fotos</span>
                         )}
                       </td>
-
                       <td style={tdS}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: meta.bg, color: meta.color, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 600 }}>
                           <Icon size={10} />{meta.label}
@@ -309,56 +399,6 @@ export default function BultosPage() {
         </>
       )}
 
-      {/* ──────────── TAB: SUCURSALES ──────────── */}
-      {tab === 'Sucursales' && (
-        <>
-          {showStoreForm && (
-            <div className="card" style={{ padding: '20px 24px' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Nueva sucursal</h3>
-              <form onSubmit={(e) => { e.preventDefault(); createStoreMut.mutate(storeForm) }}
-                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                {[
-                  ['Nombre *', 'name', 'text', 'Sucursal Norte'],
-                  ['Dirección', 'address', 'text', 'Av. Principal 100'],
-                  ['Latitud', 'lat', 'number', '-38.9516'],
-                  ['Longitud', 'lng', 'number', '-68.0591'],
-                ].map(([label, key, type, ph]) => (
-                  <label key={key} style={lblStyle}>
-                    {label}
-                    <input className="input" type={type} placeholder={ph} required={label.includes('*')}
-                      value={storeForm[key]}
-                      onChange={(e) => setStoreForm({ ...storeForm, [key]: e.target.value })}
-                      step={type === 'number' ? 'any' : undefined} />
-                  </label>
-                ))}
-                <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn-secondary" onClick={() => setShowStoreForm(false)}>Cancelar</button>
-                  <button type="submit" className="btn-primary" disabled={createStoreMut.isPending}>{createStoreMut.isPending ? 'Guardando…' : 'Crear sucursal'}</button>
-                </div>
-              </form>
-            </div>
-          )}
-          <TableCard title="Sucursales" count={stores.length} loading={loadStores} Icon={Store}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr style={{ background: 'var(--bg)' }}>{['Nombre', 'Dirección', 'Coordenadas', ''].map((h) => <th key={h} style={thS}>{h}</th>)}</tr></thead>
-              <tbody>
-                {stores.map((s) => (
-                  <tr key={s.id} style={{ borderTop: '1px solid var(--border)' }}>
-                    <td style={{ ...tdS, fontWeight: 600 }}>{s.name}</td>
-                    <td style={{ ...tdS, color: 'var(--muted)', fontSize: 12 }}>{s.address || '—'}</td>
-                    <td style={{ ...tdS, fontSize: 12, color: 'var(--muted2)', fontFamily: 'monospace' }}>
-                      {s.lat && s.lng ? `${parseFloat(s.lat).toFixed(4)}, ${parseFloat(s.lng).toFixed(4)}` : '—'}
-                    </td>
-                    <td style={tdS}><button onClick={() => { if (confirm(`¿Eliminar ${s.name}?`)) deleteStoreMut.mutate(s.id) }} style={iconBtn}><Trash2 size={13} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableCard>
-        </>
-      )}
-
-      {/* ──────────── TAB: BLOQUEOS ──────────── */}
       {tab === 'Bloqueos' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
           {loadBlocked ? (
@@ -390,10 +430,8 @@ export default function BultosPage() {
         </div>
       )}
 
-      {/* ──────────── TAB: HISTORIAL ──────────── */}
       {tab === 'Historial' && (
-        <TableCard title="Historial de accesos" count={accesos.length} loading={loadAccesos} Icon={AlertTriangle}
-          subtitle="Últimos 200 registros">
+        <TableCard title="Historial de accesos" count={accesos.length} loading={loadAccesos} Icon={AlertTriangle} subtitle="Últimos 200 registros">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr style={{ background: 'var(--bg)' }}>{['Repartidor', 'Lote', 'Esperado', 'Ingresado', 'Resultado', 'Fecha'].map((h) => <th key={h} style={thS}>{h}</th>)}</tr></thead>
             <tbody>
@@ -424,8 +462,6 @@ export default function BultosPage() {
   )
 }
 
-// ─── sub-componente tabla ────────────────────────────────────────────────────
-
 function TableCard({ title, count, loading, Icon, subtitle, children }) {
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
@@ -445,8 +481,6 @@ function TableCard({ title, count, loading, Icon, subtitle, children }) {
     </div>
   )
 }
-
-// ─── estilos constantes ──────────────────────────────────────────────────────
 
 const lblStyle = { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, fontWeight: 600, color: 'var(--text2)' }
 const thS = { padding: '9px 14px', fontSize: 11, fontWeight: 600, color: 'var(--muted)', textAlign: 'left', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '.04em' }

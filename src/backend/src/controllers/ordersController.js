@@ -1,5 +1,13 @@
 import { randomBytes } from 'crypto'
 import { supabase, supabaseAdmin } from '../db/supabase.js'
+import { emitCompanyEvent, emitLocationScopedEvent } from '../realtime/rooms.js'
+import {
+  getEffectiveLocationId,
+  getLocationId,
+  getRequestedLocationId,
+  withLegacyStoreAlias,
+  withLegacyStoreAliasList,
+} from '../utils/locationContract.js'
 
 // Umbrales de efectivo para el semáforo (en pesos ARS)
 const CASH_WARN   = 5_000
@@ -7,10 +15,12 @@ const CASH_DANGER = 15_000
 
 // ── Listar pedidos (rider + admin + store) ───────────────────────────────────
 export async function getOrders(req, res) {
+  const db = req.supabase ?? supabase
   const { bulto_id, status } = req.query
   const companyId = req.profile.company_id
+  const requestedLocationId = getRequestedLocationId(req.query)
 
-  let query = supabase
+  let query = db
     .from('orders')
     .select('*, order_items(*)')
     .eq('company_id', companyId)
@@ -19,22 +29,28 @@ export async function getOrders(req, res) {
   if (bulto_id) query = query.eq('bulto_id', bulto_id)
   if (status)   query = query.eq('status', status)
 
-  // Rol store: filtrar por su tienda
-  // store_id viene del perfil (disponible tras migration_v3_3_2) o del query param
+  // Rol store: filtrar por su punto de despacho.
+  // store_id permanece como alias legacy de persistencia.
   if (req.profile.role === 'store') {
-    const storeId = req.profile.store_id ?? req.query.store_id
-    if (storeId) query = query.eq('store_id', storeId)
+    const locationId = getEffectiveLocationId({
+      profile: req.profile,
+      requestedLocationId,
+    })
+    if (locationId) query = query.eq('store_id', locationId)
+  } else if (requestedLocationId) {
+    query = query.eq('store_id', requestedLocationId)
   }
 
   const { data, error } = await query
   if (error) return res.status(500).json({ error: error.message })
-  res.json(data)
+  res.json(withLegacyStoreAliasList(data))
 }
 
 // ── Crear pedido (admin + store) ──────────────────────────────────────────────
 export async function createOrder(req, res) {
+  const db = req.supabase ?? supabase
   const {
-    bulto_id, store_id, customer_name, customer_phone,
+    bulto_id, customer_name, customer_phone,
     notes, delivery_address, delivery_lat, delivery_lng,
     is_cod, payment_amount, merchandise_value,
     product_brand, product_weight,   // legacy — seguirán funcionando
@@ -45,11 +61,12 @@ export async function createOrder(req, res) {
     return res.status(400).json({ error: 'customer_name y delivery_address son requeridos' })
   }
 
-  // store_id: para rol 'store', priorizar el del perfil (disponible tras migration_v3_3_2),
-  // con fallback al enviado en el body. Admin puede enviar cualquier store_id.
-  const effectiveStoreId = req.profile.role === 'store'
-    ? (req.profile.store_id ?? store_id ?? null)
-    : (store_id ?? null)
+  // location_id es el contrato canonico; store_id queda como alias legacy de persistencia.
+  const requestedLocationId = getRequestedLocationId(req.body)
+  const effectiveLocationId = getEffectiveLocationId({
+    profile: req.profile,
+    requestedLocationId,
+  })
 
   // Lógica de cobro condicional:
   // - is_cod=false (ya fue pagado) → forzar payment_amount=0
@@ -57,12 +74,12 @@ export async function createOrder(req, res) {
   const isCod         = is_cod !== false   // default true
   const effectiveAmount = isCod ? (payment_amount ? parseFloat(payment_amount) : 0) : 0
 
-  const { data: order, error } = await supabase
+  const { data: order, error } = await db
     .from('orders')
     .insert({
       company_id:        req.profile.company_id,
       bulto_id:          bulto_id || null,
-      store_id:          effectiveStoreId,
+      store_id:          effectiveLocationId,
       customer_name:     customer_name.trim(),
       customer_phone:    customer_phone || null,
       notes:             notes || null,
@@ -97,7 +114,7 @@ export async function createOrder(req, res) {
       }))
 
     if (rows.length > 0) {
-      const { error: itemsErr } = await supabase
+      const { error: itemsErr } = await db
         .from('order_items')
         .insert(rows)
 
@@ -108,16 +125,17 @@ export async function createOrder(req, res) {
     }
   }
 
-  res.status(201).json(order)
+  res.status(201).json(withLegacyStoreAlias(order))
 }
 
 // ── Dashboard Financiero: efectivo a rendir + valor de mercadería en ruta ─────
 export async function getDashboardFinancials(req, res) {
+  const db = req.supabase ?? supabase
   const companyId = req.profile.company_id
   const IN_TRANSIT_STATUSES = ['ACCEPTED', 'IN_TRANSIT']
 
   // Efectivo a rendir: pedidos COD activos (en tránsito)
-  const { data: codOrders, error: e1 } = await supabase
+  const { data: codOrders, error: e1 } = await db
     .from('orders')
     .select('payment_amount')
     .eq('company_id', companyId)
@@ -131,7 +149,7 @@ export async function getDashboardFinancials(req, res) {
   )
 
   // Valor de mercadería: todos los pedidos activos (no solo COD)
-  const { data: activeOrders, error: e2 } = await supabase
+  const { data: activeOrders, error: e2 } = await db
     .from('orders')
     .select('merchandise_value')
     .eq('company_id', companyId)
@@ -152,10 +170,11 @@ export async function getDashboardFinancials(req, res) {
 // ── Efectivo por vehículo (semáforo del mapa) ─────────────────────────────────
 // Devuelve: { [vehicle_id]: { amount: number, level: 'normal'|'warning'|'danger' } }
 export async function getCashByVehicle(req, res) {
+  const db = req.supabase ?? supabase
   const companyId = req.profile.company_id
 
   // 1. Pedidos COD en tránsito con su bulto_id
-  const { data: orders, error: e1 } = await supabase
+  const { data: orders, error: e1 } = await db
     .from('orders')
     .select('bulto_id, payment_amount')
     .eq('company_id', companyId)
@@ -170,7 +189,7 @@ export async function getCashByVehicle(req, res) {
   const bultoIds = [...new Set(orders.map(o => o.bulto_id).filter(Boolean))]
   if (!bultoIds.length) return res.json({})
 
-  const { data: bultos, error: e2 } = await supabase
+  const { data: bultos, error: e2 } = await db
     .from('bultos')
     .select('id, active_driver_profile_id')
     .in('id', bultoIds)
@@ -181,7 +200,7 @@ export async function getCashByVehicle(req, res) {
   const profileIds = [...new Set((bultos || []).map(b => b.active_driver_profile_id).filter(Boolean))]
   if (!profileIds.length) return res.json({})
 
-  const { data: drivers, error: e3 } = await supabase
+  const { data: drivers, error: e3 } = await db
     .from('drivers')
     .select('profile_id, assigned_vehicle_id')
     .in('profile_id', profileIds)
@@ -218,6 +237,7 @@ export async function getCashByVehicle(req, res) {
 
 // ── Actualizar estado de un pedido ───────────────────────────────────────────
 export async function updateOrderStatus(req, res) {
+  const db = req.supabase ?? supabase
   const { id } = req.params
   const { status } = req.body
   const VALID = ['PENDING', 'READY_FOR_PICKUP', 'ACCEPTED', 'IN_TRANSIT', 'DELIVERED', 'FAILED']
@@ -232,7 +252,7 @@ export async function updateOrderStatus(req, res) {
   if (status === 'IN_TRANSIT')  extra.picked_up_at  = new Date().toISOString()
   if (status === 'DELIVERED')   extra.delivered_at  = new Date().toISOString()
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('orders')
     .update({ status, ...extra })
     .eq('id', id)
@@ -242,31 +262,34 @@ export async function updateOrderStatus(req, res) {
 
   if (error) return res.status(400).json({ error: error.message })
 
+  const locationId = getLocationId(data.location_id, data.store_id)
   const payload = {
-    orderId:    data.id,
-    status:     data.status,
-    bulto_id:   data.bulto_id,
-    store_id:   data.store_id,
-    company_id: data.company_id,
+    orderId:     data.id,
+    status:      data.status,
+    bulto_id:    data.bulto_id,
+    store_id:    data.store_id,
+    location_id: locationId,
+    company_id:  data.company_id,
   }
 
-  req.io?.emit('order:status_update', payload)
+  emitCompanyEvent(req.io, data.company_id, 'order:status_update', payload)
 
-  if (data.store_id) {
-    if (status === 'READY_FOR_PICKUP') req.io?.emit(`store:${data.store_id}:order_ready`,    payload)
-    if (status === 'ACCEPTED')         req.io?.emit(`store:${data.store_id}:order_accepted`,  payload)
-    if (status === 'IN_TRANSIT')       req.io?.emit(`store:${data.store_id}:order_picked_up`, payload)
-    if (status === 'DELIVERED')        req.io?.emit(`store:${data.store_id}:order_delivered`, payload)
+  if (locationId) {
+    if (status === 'READY_FOR_PICKUP') emitLocationScopedEvent(req.io, locationId, 'order_ready', payload)
+    if (status === 'ACCEPTED')         emitLocationScopedEvent(req.io, locationId, 'order_accepted', payload)
+    if (status === 'IN_TRANSIT')       emitLocationScopedEvent(req.io, locationId, 'order_picked_up', payload)
+    if (status === 'DELIVERED')        emitLocationScopedEvent(req.io, locationId, 'order_delivered', payload)
   }
 
-  res.json(data)
+  res.json(withLegacyStoreAlias(data))
 }
 
 // ── Marcar pedido como Listo para Retiro (store) ──────────────────────────────
 export async function markReadyForPickup(req, res) {
+  const db = req.supabase ?? supabase
   const { id } = req.params
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('orders')
     .update({ status: 'READY_FOR_PICKUP' })
     .eq('id', id)
@@ -279,20 +302,23 @@ export async function markReadyForPickup(req, res) {
     return res.status(400).json({ error: error?.message || 'El pedido no está en estado PENDING' })
   }
 
+  const locationId = getLocationId(data.location_id, data.store_id)
   const payload = {
-    orderId:    data.id,
-    status:     'READY_FOR_PICKUP',
-    store_id:   data.store_id,
-    company_id: data.company_id,
+    orderId:     data.id,
+    status:      'READY_FOR_PICKUP',
+    store_id:    data.store_id,
+    location_id: locationId,
+    company_id:  data.company_id,
   }
-  req.io?.emit('order:status_update', payload)
-  if (data.store_id) req.io?.emit(`store:${data.store_id}:order_ready`, payload)
+  emitCompanyEvent(req.io, data.company_id, 'order:status_update', payload)
+  emitLocationScopedEvent(req.io, locationId, 'order_ready', payload)
 
-  res.json(data)
+  res.json(withLegacyStoreAlias(data))
 }
 
 // ── Subir foto de entrega (PoD) y marcar DELIVERED ────────────────────────────
 export async function uploadPoD(req, res) {
+  const db = req.supabase ?? supabase
   const { id } = req.params
   const { image_base64 } = req.body
 
@@ -300,7 +326,7 @@ export async function uploadPoD(req, res) {
     return res.status(400).json({ error: 'image_base64 es requerido' })
   }
 
-  const { data: order, error: findErr } = await supabase
+  const { data: order, error: findErr } = await db
     .from('orders')
     .select('id, status')
     .eq('id', id)
@@ -327,7 +353,7 @@ export async function uploadPoD(req, res) {
     .from('pod-photos')
     .getPublicUrl(filename)
 
-  const { data: updated, error: updateErr } = await supabase
+  const { data: updated, error: updateErr } = await db
     .from('orders')
     .update({
       status:        'DELIVERED',
@@ -341,21 +367,24 @@ export async function uploadPoD(req, res) {
 
   if (updateErr) return res.status(500).json({ error: updateErr.message })
 
+  const locationId = getLocationId(updated.location_id, updated.store_id)
   const deliveredPayload = {
-    orderId:    id,
-    status:     'DELIVERED',
-    bulto_id:   updated.bulto_id,
-    store_id:   updated.store_id,
-    company_id: updated.company_id,
+    orderId:     id,
+    status:      'DELIVERED',
+    bulto_id:    updated.bulto_id,
+    store_id:    updated.store_id,
+    location_id: locationId,
+    company_id:  updated.company_id,
   }
-  req.io?.emit('order:status_update', deliveredPayload)
-  if (updated.store_id) req.io?.emit(`store:${updated.store_id}:order_delivered`, deliveredPayload)
+  emitCompanyEvent(req.io, updated.company_id, 'order:status_update', deliveredPayload)
+  emitLocationScopedEvent(req.io, locationId, 'order_delivered', deliveredPayload)
 
-  res.json(updated)
+  res.json(withLegacyStoreAlias(updated))
 }
 
 // ── Subir foto de factura/remito (Store) ──────────────────────────────────────
 export async function uploadInvoice(req, res) {
+  const db = req.supabase ?? supabase
   const { id } = req.params
   const { image_base64 } = req.body
 
@@ -363,7 +392,7 @@ export async function uploadInvoice(req, res) {
     return res.status(400).json({ error: 'image_base64 es requerido' })
   }
 
-  const { data: order, error: findErr } = await supabase
+  const { data: order, error: findErr } = await db
     .from('orders')
     .select('id')
     .eq('id', id)
@@ -389,7 +418,7 @@ export async function uploadInvoice(req, res) {
     .from('pod-photos')
     .getPublicUrl(filename)
 
-  const { data: updated, error: updateErr } = await supabase
+  const { data: updated, error: updateErr } = await db
     .from('orders')
     .update({ invoice_photo_url: urlData.publicUrl })
     .eq('id', id)
@@ -398,13 +427,14 @@ export async function uploadInvoice(req, res) {
     .single()
 
   if (updateErr) return res.status(500).json({ error: updateErr.message })
-  res.json(updated)
+  res.json(withLegacyStoreAlias(updated))
 }
 
 // ── Eliminar pedido (admin) ───────────────────────────────────────────────────
 export async function deleteOrder(req, res) {
+  const db = req.supabase ?? supabase
   const { id } = req.params
-  const { error } = await supabase
+  const { error } = await db
     .from('orders')
     .delete()
     .eq('id', id)

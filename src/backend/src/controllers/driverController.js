@@ -2,7 +2,8 @@ import { supabase } from '../db/supabase.js'
 
 // Devuelve el registro de conductor del usuario autenticado
 export async function getMyDriver(req, res) {
-  const { data, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data, error } = await db
     .from('drivers')
     .select('*, vehicles(id, plate, brand, model, color, status)')
     .eq('profile_id', req.user.id)
@@ -13,7 +14,8 @@ export async function getMyDriver(req, res) {
 }
 
 export async function listDrivers(req, res) {
-  const { data, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data, error } = await db
     .from('drivers')
     .select('*, profiles(full_name, phone, avatar_url), vehicles(plate, brand, model)')
     .eq('company_id', req.profile.company_id)
@@ -24,7 +26,8 @@ export async function listDrivers(req, res) {
 }
 
 export async function getDriver(req, res) {
-  const { data, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data, error } = await db
     .from('drivers')
     .select('*, profiles(full_name, phone, avatar_url), vehicles(plate, brand, model)')
     .eq('id', req.params.id)
@@ -36,12 +39,13 @@ export async function getDriver(req, res) {
 }
 
 export async function createDriver(req, res) {
+  const db = req.supabase ?? supabase
   const { profile_id, license_number, license_expiry, assigned_vehicle_id } = req.body
   if (!profile_id || !license_number || !license_expiry) {
     return res.status(400).json({ error: 'profile_id, license_number y license_expiry son requeridos' })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('drivers')
     .insert({
       profile_id,
@@ -58,9 +62,10 @@ export async function createDriver(req, res) {
 }
 
 export async function updateDriver(req, res) {
+  const db = req.supabase ?? supabase
   const { license_number, license_expiry, assigned_vehicle_id } = req.body
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('drivers')
     .update({ license_number, license_expiry, assigned_vehicle_id })
     .eq('id', req.params.id)
@@ -73,7 +78,8 @@ export async function updateDriver(req, res) {
 }
 
 export async function deleteDriver(req, res) {
-  const { error } = await supabase
+  const db = req.supabase ?? supabase
+  const { error } = await db
     .from('drivers')
     .delete()
     .eq('id', req.params.id)

@@ -51,6 +51,11 @@ CREATE TABLE companies (
   name       TEXT        NOT NULL,
   plan       TEXT        NOT NULL DEFAULT 'basic'
                CHECK (plan IN ('basic', 'pro', 'enterprise')),
+  commercial_status TEXT  NOT NULL DEFAULT 'trial'
+               CHECK (commercial_status IN ('trial', 'active', 'past_due', 'paused', 'cancelled')),
+  feature_flags JSONB     NOT NULL DEFAULT '{}'::jsonb,
+  limits_config JSONB     NOT NULL DEFAULT '{}'::jsonb,
+  addons     JSONB        NOT NULL DEFAULT '[]'::jsonb,
   is_active  BOOLEAN     NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -64,9 +69,14 @@ CREATE TABLE stores (
   id         UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id UUID        NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   name       TEXT        NOT NULL,
+  location_type TEXT     NOT NULL DEFAULT 'store'
+               CHECK (location_type IN ('store', 'branch', 'warehouse', 'logistics', 'office', 'pickup', 'other')),
   address    TEXT,
   lat        NUMERIC(10, 7),
   lng        NUMERIC(10, 7),
+  is_active  BOOLEAN     NOT NULL DEFAULT TRUE,
+  rider_visible BOOLEAN  NOT NULL DEFAULT TRUE,
+  is_temporary BOOLEAN   NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

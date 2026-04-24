@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import MapView from '../components/MapView'
 import { api } from '../services/api'
+import { useAuthStore } from '../store/authStore'
 
 // ── Colores del semáforo de efectivo ─────────────────────────────────────────
 const CASH_COLORS = {
@@ -115,15 +116,22 @@ const STATUS_COLOR = {
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 export default function MapPage() {
+  const token = useAuthStore((state) => state.token)
+  const mapCapabilities = useAuthStore((state) => state.mapAccess?.capabilities ?? [])
+  const canAccessCompanyMap = mapCapabilities.includes('map.view.company')
+  const canViewMapCash = mapCapabilities.includes('map.view.cash')
+  const canUseRealtime = mapCapabilities.includes('map.realtime.company')
   const { data: vehicles = [] } = useQuery({
     queryKey: ['vehicles'],
     queryFn:  api.getVehicles,
+    enabled: canAccessCompanyMap,
     refetchInterval: 30_000,
   })
 
   const { data: drivers = [] } = useQuery({
     queryKey: ['drivers'],
     queryFn:  api.getDrivers,
+    enabled: canAccessCompanyMap,
     refetchInterval: 60_000,
   })
 
@@ -131,6 +139,7 @@ export default function MapPage() {
   const { data: cashByVehicle = {} } = useQuery({
     queryKey: ['orders', 'cash-by-vehicle'],
     queryFn:  api.getCashByVehicle,
+    enabled: canAccessCompanyMap && canViewMapCash,
     refetchInterval: 30_000,
   })
 
@@ -206,7 +215,7 @@ export default function MapPage() {
 
   // ── Cargar pedidos reales (extrae la lógica para poder reutilizarla) ───────
   const loadRealOrders = useCallback(async (vehicleId) => {
-    if (!vehicleId || vehicleId === DEMO_VEHICLE_ID) return
+    if (!canAccessCompanyMap || !vehicleId || vehicleId === DEMO_VEHICLE_ID) return
     const pos = livePositions[vehicleId]
     setLoadingOrders(true)
     try {
@@ -235,11 +244,17 @@ export default function MapPage() {
     } finally {
       setLoadingOrders(false)
     }
-  }, [livePositions])
+  }, [canAccessCompanyMap, livePositions])
 
   // ── Socket: crear una sola vez ────────────────────────────────────────────
   useEffect(() => {
+    if (!token || !canUseRealtime) {
+      setConnected(false)
+      return undefined
+    }
+
     const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3001', {
+      auth: { token },
       transports: ['websocket', 'polling'],
     })
     socketRef.current = socket
@@ -263,8 +278,12 @@ export default function MapPage() {
       }
     })
 
-    return () => { socket.disconnect(); socketRef.current = null }
-  }, [loadRealOrders])
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
+      setConnected(false)
+    }
+  }, [canUseRealtime, loadRealOrders, token])
 
   // ── Auto-refresh cada 20s mientras haya un vehículo real seleccionado ─────
   useEffect(() => {
@@ -278,7 +297,7 @@ export default function MapPage() {
   // ── Suscribirse a canales de vehículos ────────────────────────────────────
   useEffect(() => {
     const socket = socketRef.current
-    if (!socket || !vehicles.length) return
+    if (!canUseRealtime || !socket || !vehicles.length) return
 
     vehicles.forEach(({ id }) => {
       socket.off(`vehicle:${id}`)
@@ -287,7 +306,7 @@ export default function MapPage() {
       })
     })
     return () => vehicles.forEach(({ id }) => socket.off(`vehicle:${id}`))
-  }, [vehicles])
+  }, [canUseRealtime, vehicles])
 
   // ── Cámara inteligente: seguir conductor con todos sus pines en cuadro ──────
   // Fires cuando: cambia posición GPS (livePositions), cambia conductor (selectedId)
@@ -374,6 +393,11 @@ export default function MapPage() {
   const deliveredCount = activeOrders.filter(o => o.status === 'DELIVERED').length
 
   const selectedVehicle = vehiclesWithPos.find(v => v.id === selectedId)
+  const connectionLabel = canUseRealtime
+    ? (connected ? 'Conectado' : 'Desconectado')
+    : 'Sin realtime'
+  const connectionColor = canUseRealtime && connected ? '#059669' : 'var(--muted)'
+  const connectionBackground = canUseRealtime && connected ? 'var(--success-l)' : '#f1f5f9'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', gap: 0 }}>
@@ -417,12 +441,12 @@ export default function MapPage() {
 
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            background: connected ? 'var(--success-l)' : '#f1f5f9',
-            color: connected ? '#059669' : 'var(--muted)',
+            background: connectionBackground,
+            color: connectionColor,
             borderRadius: 20, padding: '6px 12px', fontSize: 12, fontWeight: 600,
           }}>
-            {connected ? <Wifi size={13} /> : <WifiOff size={13} />}
-            {connected ? 'Conectado' : 'Desconectado'}
+            {canUseRealtime && connected ? <Wifi size={13} /> : <WifiOff size={13} />}
+            {connectionLabel}
           </div>
         </div>
       </div>
@@ -477,7 +501,7 @@ export default function MapPage() {
                   const live      = v._isDemo ? v : livePositions[v.id]
                   const clrs      = STATUS_COLOR[v.status] || STATUS_COLOR.inactive
                   const driver    = driverByVehicle[v.id]
-                  const cashInfo  = v._isDemo ? null : cashByVehicle[v.id]
+                  const cashInfo  = canViewMapCash && !v._isDemo ? cashByVehicle[v.id] : null
                   const cashClrs  = CASH_COLORS[cashInfo?.level] || CASH_COLORS.normal
                   const hasCashAlert = cashInfo && cashInfo.level !== 'normal'
 
@@ -703,7 +727,12 @@ export default function MapPage() {
 
         {/* ── Mapa ── */}
         <div className="card" style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-          <MapView ref={mapRef} vehicles={vehiclesWithPos} height="100%" cashData={cashByVehicle} />
+          <MapView
+            ref={mapRef}
+            vehicles={vehiclesWithPos}
+            height="100%"
+            cashData={canViewMapCash ? cashByVehicle : {}}
+          />
 
           {/* Leyenda de pines (solo en modo detalle) */}
           {selectedId && activeOrders.length > 0 && (

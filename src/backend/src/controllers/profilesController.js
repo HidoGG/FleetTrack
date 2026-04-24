@@ -1,4 +1,10 @@
 import { supabaseAdmin } from '../db/supabase.js'
+import {
+  getEffectiveLocationId,
+  getRequestedLocationId,
+  withLegacyStoreAlias,
+  withLegacyStoreAliasList,
+} from '../utils/locationContract.js'
 
 const ALLOWED_ROLES = ['admin', 'store']
 
@@ -13,7 +19,7 @@ export async function listProfiles(req, res) {
     .order('created_at', { ascending: false })
 
   if (error) return res.status(500).json({ error: error.message })
-  res.json(data)
+  res.json(withLegacyStoreAliasList(data))
 }
 
 // ── Crear perfil en una empresa ───────────────────────────────────────────────
@@ -23,7 +29,9 @@ export async function listProfiles(req, res) {
 //   3. Si el insert de profiles falla → rollback del auth user
 export async function createProfile(req, res) {
   const { companyId } = req.params
-  const { email, password, role, full_name, phone, store_id } = req.body
+  const { email, password, role, full_name, phone } = req.body
+  const requestedLocationId = getRequestedLocationId(req.body)
+  const effectiveLocationId = getEffectiveLocationId({ requestedLocationId })
 
   if (!email || !password || !role || !full_name) {
     return res.status(400).json({ error: 'email, password, role y full_name son requeridos' })
@@ -33,8 +41,8 @@ export async function createProfile(req, res) {
     return res.status(400).json({ error: `role debe ser uno de: ${ALLOWED_ROLES.join(', ')}` })
   }
 
-  if (role === 'store' && !store_id) {
-    return res.status(400).json({ error: 'store_id es requerido para el rol store' })
+  if (role === 'store' && !effectiveLocationId) {
+    return res.status(400).json({ error: 'location_id es requerido para el rol punto de despacho' })
   }
 
   // 1. Crear usuario en Supabase Auth
@@ -55,7 +63,7 @@ export async function createProfile(req, res) {
       role,
       full_name:  full_name.trim(),
       phone:      phone    || null,
-      store_id:   store_id || null,
+      store_id:   effectiveLocationId,
       email,
       state:      'active',
     })
@@ -68,7 +76,7 @@ export async function createProfile(req, res) {
     return res.status(400).json({ error: profileError.message })
   }
 
-  res.status(201).json({ user: { id: authData.user.id, email: authData.user.email }, profile })
+  res.status(201).json({ user: { id: authData.user.id, email: authData.user.email }, profile: withLegacyStoreAlias(profile) })
 }
 
 // ── Cambiar estado de un perfil ───────────────────────────────────────────────
@@ -112,5 +120,5 @@ export async function setProfileState(req, res) {
     .single()
 
   if (error) return res.status(400).json({ error: error.message })
-  res.json(data)
+  res.json(withLegacyStoreAlias(data))
 }

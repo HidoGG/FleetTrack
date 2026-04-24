@@ -1,7 +1,10 @@
 import { supabase } from '../db/supabase.js'
+import { emitCompanyEvent } from '../realtime/rooms.js'
+import { withLegacyStoreAliasList } from '../utils/locationContract.js'
 
 // ── Validar código de lote + conteo (driver/rider) ───────────────────────────
 export async function validateLote(req, res) {
+  const db = req.supabase ?? supabase
   const { codigo_lote, conteo_ingresado } = req.body
   const profileId = req.profile.id
   const companyId = req.profile.company_id
@@ -11,7 +14,7 @@ export async function validateLote(req, res) {
   }
 
   // 1. Leer estado actual del perfil
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from('profiles')
     .select('intentos_fallidos, esta_bloqueado')
     .eq('id', profileId)
@@ -26,7 +29,7 @@ export async function validateLote(req, res) {
   }
 
   // 2. Buscar el lote por código y empresa
-  const { data: bulto } = await supabase
+  const { data: bulto } = await db
     .from('bultos')
     .select('id, codigo_lote, cantidad_esperada')
     .eq('codigo_lote', codigo_lote.trim().toUpperCase())
@@ -38,7 +41,7 @@ export async function validateLote(req, res) {
     const nuevoIntentos = (profile?.intentos_fallidos || 0) + 1
     const seBloquea = nuevoIntentos >= 3
 
-    await supabase
+    await db
       .from('profiles')
       .update({
         intentos_fallidos: nuevoIntentos,
@@ -48,7 +51,7 @@ export async function validateLote(req, res) {
       .eq('id', profileId)
 
     // Log del intento fallido
-    await supabase.from('accesos_lote').insert({
+    await db.from('accesos_lote').insert({
       profile_id: profileId,
       codigo_lote: codigo_lote.trim().toUpperCase(),
       conteo_ingresado: parseInt(conteo_ingresado) || 0,
@@ -73,7 +76,7 @@ export async function validateLote(req, res) {
   }
 
   // ── CÓDIGO CORRECTO: resetear contador de intentos ─────────────────────────
-  await supabase
+  await db
     .from('profiles')
     .update({ intentos_fallidos: 0, ultimo_codigo_lote: bulto.codigo_lote })
     .eq('id', profileId)
@@ -83,7 +86,7 @@ export async function validateLote(req, res) {
   const diferencia = conteoNum !== bulto.cantidad_esperada
 
   // Log de acceso exitoso (con o sin diferencia)
-  await supabase.from('accesos_lote').insert({
+  await db.from('accesos_lote').insert({
     profile_id: profileId,
     codigo_lote: bulto.codigo_lote,
     conteo_ingresado: conteoNum,
@@ -93,13 +96,13 @@ export async function validateLote(req, res) {
   })
 
   // Marcar el bulto como EN_RUTA y registrar el driver activo
-  await supabase
+  await db
     .from('bultos')
     .update({ estado: 'EN_RUTA', active_driver_profile_id: profileId })
     .eq('id', bulto.id)
 
   // Obtener assigned_vehicle_id del driver para tracking GPS
-  const { data: driver } = await supabase
+  const { data: driver } = await db
     .from('drivers')
     .select('id, assigned_vehicle_id')
     .eq('profile_id', profileId)
@@ -109,7 +112,7 @@ export async function validateLote(req, res) {
 
   // ── Notificar al panel admin en tiempo real que este vehículo tiene lote activo
   if (vehicleId) {
-    req.io?.emit('bulto:activated', {
+    emitCompanyEvent(req.io, companyId, 'bulto:activated', {
       vehicle_id: vehicleId,
       bulto_id:   bulto.id,
       company_id: companyId,
@@ -137,6 +140,7 @@ export async function validateLote(req, res) {
 
 // ── Desbloquear rider con clave de supervisor ─────────────────────────────────
 export async function unlockRider(req, res) {
+  const db = req.supabase ?? supabase
   const { codigo_lote, clave_desbloqueo } = req.body
   const profileId = req.profile.id
   const companyId = req.profile.company_id
@@ -146,7 +150,7 @@ export async function unlockRider(req, res) {
   }
 
   // Verificar que la clave corresponde al bulto de esta empresa
-  const { data: bulto } = await supabase
+  const { data: bulto } = await db
     .from('bultos')
     .select('id, clave_desbloqueo')
     .eq('codigo_lote', codigo_lote.trim().toUpperCase())
@@ -158,7 +162,7 @@ export async function unlockRider(req, res) {
   }
 
   // Desbloquear el perfil del rider
-  await supabase
+  await db
     .from('profiles')
     .update({ intentos_fallidos: 0, esta_bloqueado: false })
     .eq('id', profileId)
@@ -168,7 +172,8 @@ export async function unlockRider(req, res) {
 
 // ── Listar lotes (admin) ──────────────────────────────────────────────────────
 export async function getBultos(req, res) {
-  const { data, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data, error } = await db
     .from('bultos')
     .select('*')
     .eq('company_id', req.profile.company_id)
@@ -180,13 +185,14 @@ export async function getBultos(req, res) {
 
 // ── Crear lote (admin) ────────────────────────────────────────────────────────
 export async function createBulto(req, res) {
+  const db = req.supabase ?? supabase
   const { codigo_lote, cantidad_esperada, clave_desbloqueo, descripcion } = req.body
 
   if (!codigo_lote || !cantidad_esperada || !clave_desbloqueo) {
     return res.status(400).json({ error: 'codigo_lote, cantidad_esperada y clave_desbloqueo son requeridos' })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('bultos')
     .insert({
       company_id:       req.profile.company_id,
@@ -204,8 +210,9 @@ export async function createBulto(req, res) {
 
 // ── Eliminar lote (admin) ─────────────────────────────────────────────────────
 export async function deleteBulto(req, res) {
+  const db = req.supabase ?? supabase
   const { id } = req.params
-  const { error } = await supabase
+  const { error } = await db
     .from('bultos')
     .delete()
     .eq('id', id)
@@ -217,7 +224,8 @@ export async function deleteBulto(req, res) {
 
 // ── Riders bloqueados con su clave de desbloqueo (admin) ──────────────────────
 export async function getBlockedRiders(req, res) {
-  const { data: blocked, error } = await supabase
+  const db = req.supabase ?? supabase
+  const { data: blocked, error } = await db
     .from('profiles')
     .select('id, full_name, ultimo_codigo_lote, intentos_fallidos')
     .eq('company_id', req.profile.company_id)
@@ -231,7 +239,7 @@ export async function getBlockedRiders(req, res) {
     blocked.map(async (p) => {
       let clave_desbloqueo = null
       if (p.ultimo_codigo_lote) {
-        const { data: bulto } = await supabase
+        const { data: bulto } = await db
           .from('bultos')
           .select('clave_desbloqueo')
           .eq('codigo_lote', p.ultimo_codigo_lote)
@@ -248,8 +256,9 @@ export async function getBlockedRiders(req, res) {
 
 // ── Historial de accesos para auditoría (admin) ───────────────────────────────
 export async function getAccesosLog(req, res) {
+  const db = req.supabase ?? supabase
   // Obtener IDs de profiles de esta empresa
-  const { data: companyProfiles } = await supabase
+  const { data: companyProfiles } = await db
     .from('profiles')
     .select('id')
     .eq('company_id', req.profile.company_id)
@@ -257,7 +266,7 @@ export async function getAccesosLog(req, res) {
   const profileIds = (companyProfiles || []).map((p) => p.id)
   if (!profileIds.length) return res.json([])
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('accesos_lote')
     .select('*, profiles(full_name)')
     .in('profile_id', profileIds)
@@ -270,13 +279,14 @@ export async function getAccesosLog(req, res) {
 
 // ── Pedidos activos de un vehículo (admin — para el mapa) ─────────────────────
 export async function getActiveOrdersForVehicle(req, res) {
+  const db = req.supabase ?? supabase
   const { vehicle_id } = req.query
   const companyId = req.profile.company_id
 
   if (!vehicle_id) return res.status(400).json({ error: 'vehicle_id es requerido' })
 
   // 1. Buscar conductor asignado a este vehículo
-  const { data: driver } = await supabase
+  const { data: driver } = await db
     .from('drivers')
     .select('id, profile_id')
     .eq('assigned_vehicle_id', vehicle_id)
@@ -294,7 +304,7 @@ export async function getActiveOrdersForVehicle(req, res) {
   }
 
   // 2. Buscar bulto activo — primero EN_RUTA, luego cualquier estado activo (fallback)
-  let { data: bulto } = await supabase
+  let { data: bulto } = await db
     .from('bultos')
     .select('id, codigo_lote, cantidad_esperada, estado')
     .eq('active_driver_profile_id', driver.profile_id)
@@ -304,7 +314,7 @@ export async function getActiveOrdersForVehicle(req, res) {
 
   if (!bulto) {
     // Fallback: el bulto existe pero puede estar en otro estado distinto a COMPLETADO
-    const { data: fallbackBulto } = await supabase
+    const { data: fallbackBulto } = await db
       .from('bultos')
       .select('id, codigo_lote, cantidad_esperada, estado')
       .eq('active_driver_profile_id', driver.profile_id)
@@ -326,7 +336,7 @@ export async function getActiveOrdersForVehicle(req, res) {
   }
 
   // 3. Obtener pedidos del lote
-  const { data: orders, error } = await supabase
+  const { data: orders, error } = await db
     .from('orders')
     .select('*')
     .eq('bulto_id', bulto.id)
@@ -334,5 +344,5 @@ export async function getActiveOrdersForVehicle(req, res) {
     .order('created_at', { ascending: true })
 
   if (error) return res.status(500).json({ error: error.message })
-  res.json({ bulto, orders: orders || [] })
+  res.json({ bulto, orders: withLegacyStoreAliasList(orders || []) })
 }

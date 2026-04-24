@@ -1,4 +1,6 @@
-import { supabase } from '../db/supabase.js'
+import { supabase, supabaseAdmin } from '../db/supabase.js'
+import { serializeMapPolicy } from '../services/mapPolicy.js'
+import { withLocationId } from '../utils/locationContract.js'
 
 export async function login(req, res) {
   const { email, password } = req.body
@@ -10,7 +12,7 @@ export async function login(req, res) {
   if (error) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' })
 
   // Obtener perfil con state del perfil y de la empresa
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
     .select('id, company_id, role, full_name, store_id, state, email, last_login, company:companies(state)')
     .eq('id', data.user.id)
@@ -29,17 +31,23 @@ export async function login(req, res) {
     return res.status(403).json({ error: 'La empresa está suspendida. Contactá al administrador.' })
   }
 
+  const normalizedProfile = withLocationId(profile)
+
   // Sincronizar email y registrar last_login (fire-and-forget)
   const updates = { last_login: new Date().toISOString() }
   if (!profile.email) updates.email = data.user.email
-  supabase.from('profiles').update(updates).eq('id', data.user.id).then(({ error: updateError }) => {
+  supabaseAdmin.from('profiles').update(updates).eq('id', data.user.id).then(({ error: updateError }) => {
     if (updateError) console.error('[authController] Error actualizando perfil post-login:', updateError.message)
   })
 
   res.json({
     token:        data.session.access_token,
     refreshToken: data.session.refresh_token,
-    user: { ...data.user, profile }
+    user: {
+      ...data.user,
+      profile: normalizedProfile,
+      map_access: serializeMapPolicy(normalizedProfile),
+    }
   })
 }
 
@@ -66,5 +74,6 @@ export async function logout(req, res) {
 }
 
 export async function getMe(req, res) {
-  res.json({ user: req.user, profile: req.profile })
+  const profile = withLocationId(req.profile)
+  res.json({ user: req.user, profile, map_access: serializeMapPolicy(profile) })
 }

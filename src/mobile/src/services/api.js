@@ -5,6 +5,39 @@ const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
 let isRefreshing = false
 let refreshPromise = null
 
+function getLocationId(record) {
+  if (!record || typeof record !== 'object') return null
+  return record.location_id ?? record.store_id ?? null
+}
+
+function normalizeRecord(record) {
+  if (!record || typeof record !== 'object') return record
+
+  const locationId = getLocationId(record)
+
+  return {
+    ...record,
+    location_id: locationId,
+    store_id: record.store_id ?? locationId,
+  }
+}
+
+function normalizeAuthPayload(data) {
+  if (!data?.user) return data
+
+  return {
+    ...data,
+    user: {
+      ...data.user,
+      profile: normalizeRecord(data.user.profile),
+    },
+  }
+}
+
+function normalizeList(data) {
+  return Array.isArray(data) ? data.map(normalizeRecord) : data
+}
+
 async function attemptRefresh() {
   const { refreshToken, setToken, logout } = useAuthStore.getState()
   if (!refreshToken) {
@@ -67,7 +100,7 @@ async function request(path, options = {}, retry = true) {
 }
 
 export const api = {
-  login:       (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login:       (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }).then(normalizeAuthPayload),
   logout:      () => request('/auth/logout', { method: 'POST' }),
   getVehicles: () => request('/vehicles'),
   getDrivers:   () => request('/drivers'),
@@ -89,6 +122,7 @@ export const api = {
   updateOrderStatus: (id, status) => request(`/orders/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
   uploadPoD:         (id, image_base64) => request(`/orders/${id}/pod`, { method: 'POST', body: JSON.stringify({ image_base64 }) }),
 
-  // Stores
-  getStores: () => request('/stores'),
+  // Locations
+  getLocations: () => request('/stores').then(normalizeList),
+  getStores: () => request('/stores').then(normalizeList),
 }

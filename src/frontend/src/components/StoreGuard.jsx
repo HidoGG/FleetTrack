@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 
 /**
- * Protege las rutas /store/*
+ * Protege las rutas /store/* del portal de despacho.
  * - Sin sesión: redirige a /login
  * - Con sesión pero rol != 'store': redirige al dashboard admin
  */
